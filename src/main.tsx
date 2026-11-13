@@ -13,7 +13,8 @@ import {
   Moon,
   BookOpen,
 } from "lucide-react";
-import { protocols, layers } from "./data";
+import { protocols, layers, completeEvents, eventsForLayer } from "./data";
+import type { Step } from "./data";
 import { lessonFor, protocolLayers } from "./education";
 import type { LayerNumber } from "./education";
 import { initialState, labReducer } from "./simulation";
@@ -27,6 +28,23 @@ const addresses = {
   internet: "Red ISP",
   server: "203.0.113.10",
 };
+function endpointAddress(protocolId: string, step: Step, index: number, side: "from" | "to") {
+  if (protocolId === "arp") {
+    if (side === "from") return step.from === "client" ? "02:42:ac:11:00:10" : "02:42:ac:11:00:01";
+    return index === 0 ? "ff:ff:ff:ff:ff:ff" : "02:42:ac:11:00:10";
+  }
+  if (protocolId === "dhcp") {
+    if (side === "from") return step.from === "client" ? "0.0.0.0" : "192.168.1.1";
+    return "255.255.255.255";
+  }
+  return addresses[step[side]];
+}
+const deviceNames = {
+  client: "Cliente",
+  router: "Router",
+  internet: "Internet",
+  server: "Servidor",
+};
 function App() {
   const [state, dispatch] = useReducer(labReducer, initialState);
   const { pid, layer, step: stepIndex, playing } = state;
@@ -36,11 +54,15 @@ function App() {
     "red",
   );
   const [tab, setTab] = useState<"learn" | "event" | "blue">("learn");
+  const [eventView, setEventView] = useState<"complete" | "layer">("complete");
   const [speed, setSpeed] = useState(1),
     [dark, setDark] = useState(false),
     [showOnly, setShowOnly] = useState(false);
   const p = protocols.find((x) => x.id === pid)!;
   const current = p.steps[stepIndex];
+  const visibleEvents = eventView === "complete"
+    ? completeEvents(p.steps)
+    : eventsForLayer(p.steps, layer);
   const lesson = lessonFor(layer);
   const list = useMemo(
     () =>
@@ -91,18 +113,16 @@ function App() {
     <div className={dark ? "app dark" : "app"}>
       <header>
         <div className="brand">
-          <div className="brand-icon">⬡</div>
+          <div className="brand-icon">OSI</div>
           <div>
             <strong>
-              PROTOCOL <em>EXPLORER</em>
+              ATLAS <em>OSI</em>
             </strong>
-            <small>LABORATORIO OSI · BLUE TEAM</small>
+            <small>LABORATORIO DE REDES / 01—07</small>
           </div>
         </div>
         <nav className="layer-picker" aria-label="Seleccionar capa OSI">
-          <div className="mini-label">
-            CAPA OSI <span>· {lesson.name.toUpperCase()}</span>
-          </div>
+          <div className="mini-label">ÍNDICE DE CAPAS <span>Selecciona una para estudiarla</span></div>
           <div className="layer-buttons">
             {([1, 2, 3, 4, 5, 6, 7] as LayerNumber[]).map((n) => (
               <button
@@ -112,7 +132,8 @@ function App() {
                 className={layer === n ? "active" : ""}
                 onClick={() => setLayer(n)}
               >
-                {n}
+                <span className="layer-index">0{n}</span>
+                <span className="layer-name">{lessonFor(n).name}</span>
               </button>
             ))}
           </div>
@@ -140,7 +161,21 @@ function App() {
       </header>
       <main>
         <aside className="panel sidebar">
-          <h2>SIMULACIONES</h2>
+          <div className="sidebar-heading"><span>01 / RECORRIDO</span><h2>Eventos</h2><p>{eventView === "complete" ? "Secuencia completa de la simulación." : `Solo operaciones atribuidas a la capa ${layer}.`}</p></div>
+          <div className="event-view-toggle" role="group" aria-label="Modo de eventos">
+            <button aria-pressed={eventView === "complete"} onClick={() => setEventView("complete")}>Simulación completa</button>
+            <button aria-pressed={eventView === "layer"} onClick={() => setEventView("layer")}>Inspección por capa</button>
+          </div>
+          <div className="event-list" aria-label={`Eventos de ${p.title}`}>
+            {visibleEvents.length ? visibleEvents.map(({ step: event, sourceIndex }) => (
+              <button key={event.eventId} className={sourceIndex === stepIndex ? "event-item active" : "event-item"} aria-current={sourceIndex === stepIndex ? "step" : undefined} onClick={() => { wrap(sourceIndex); setTab("event"); }}>
+                <span className="event-order">{String(sourceIndex + 1).padStart(2, "0")}</span>
+                <span className="event-copy"><strong>{event.name}</strong><small>{event.from} → {event.to} · L{event.layer} · {event.protocol}</small></span>
+                <ChevronRight size={16} />
+              </button>
+            )) : <div className="empty layer-empty"><p>No hay operaciones propias de capa {layer} en esta secuencia.</p><p>La simulación completa se conserva intacta. Esta capa puede estudiarse con la lección y el escenario Blue Team.</p></div>}
+          </div>
+          <div className="protocol-heading"><span>CAMBIAR SIMULACIÓN</span><strong>{p.title}</strong></div>
           <div className="tabs">
             {["TODOS", "BASE", "APLICACIÓN", "SEGURIDAD"].map((t) => (
               <button
@@ -201,9 +236,7 @@ function App() {
               </div>
             )}
           </div>
-          <div className="side-note">
-            <BookOpen size={16} /> 12 secuencias · catálogo ampliado en Aprender
-          </div>
+          <div className="side-note"><BookOpen size={16} /> Los eventos son ejemplos simplificados con datos sintéticos.</div>
         </aside>
         <section className="center">
           <div className="lab-context">
@@ -223,6 +256,7 @@ function App() {
               Inspeccionar capa del evento →
             </button>
           </div>
+          <div className="workspace-heading"><span>02 / DIAGRAMA</span><strong>{eventView === "complete" ? "El recorrido de los datos" : `Inspección · capa ${layer}`}</strong><small>{eventView === "complete" ? `${p.title} · evento ${stepIndex + 1} de ${p.steps.length}` : `${visibleEvents.length} de ${p.steps.length} operaciones · orden original conservado`}</small></div>
           <div className="panel visual">
             <nav className="visual-tools" aria-label="Vista del laboratorio">
               <button
@@ -255,12 +289,12 @@ function App() {
                   </b>
                   <span>{lesson.scope}</span>
                 </div>
-                <Topology step={current} playing={playing} showLayer={layer} />
+                <Topology step={current} playing={playing} showLayer={layer} protocolId={p.id} />
                 <div className="topology-legend">
                   <span>● Resaltado: elementos relevantes</span>
                   <span>
                     {layer <= 2
-                      ? "Se ilustra el primer enlace local; los enlaces restantes usan sus propias tramas y señales."
+                      ? "Se muestra el segmento local recorrido cuando intervienen cliente y router; cada enlace usa su propia trama y señal."
                       : layer === 3
                         ? "Internet agrupa routers de tránsito; cada router decide el siguiente salto."
                         : "Los routers transportan IP; no terminan estas funciones. Se supone tráfico sin NAT ni proxy."}
@@ -278,13 +312,13 @@ function App() {
                   <span>ORIGEN</span>
                   <span>DESTINO</span>
                 </div>
-                {p.steps.map((x, i) => (
+                {visibleEvents.map(({ step: x, sourceIndex: i }) => (
                   <button
                     onClick={() => {
                       wrap(i);
                       setTab("event");
                     }}
-                    key={i}
+                    key={x.eventId}
                     aria-current={i === stepIndex ? "step" : undefined}
                     className={
                       "sequence-event " + (i === stepIndex ? "current" : "")
@@ -293,7 +327,7 @@ function App() {
                     <span>
                       {i + 1}. {x.name}
                       <small>
-                        {x.from} → {x.to} · L{x.layer}
+                        {x.from} → {x.to} · responsable L{x.layer} · {x.protocol}
                       </small>
                     </span>
                     <span
@@ -311,7 +345,7 @@ function App() {
           </div>
           <div className="panel packets">
             <div className="packet-header">
-              <h2>FLUJO SIMULADO · {p.title}</h2>
+              <h2>{eventView === "complete" ? "SIMULACIÓN COMPLETA" : `OPERACIONES PROPIAS · CAPA ${layer}`} · {p.title}</h2>
               <div className="play-controls">
                 <select
                   aria-label="Velocidad"
@@ -350,14 +384,14 @@ function App() {
             <div className="table-scroll">
               <table>
                 <caption className="sr-only">
-                  Paquetes simulados de {p.title}. Selecciona un evento para
+                  Eventos sintéticos de {p.title}. Selecciona un evento para
                   inspeccionarlo.
                 </caption>
                 <thead>
                   <tr>
                     {[
                       "N.º",
-                      "TIEMPO",
+                      "ORDEN",
                       "ORIGEN",
                       "DESTINO",
                       "PROTOCOLO",
@@ -369,9 +403,9 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {p.steps.map((x, i) => (
+                  {visibleEvents.map(({ step: x, sourceIndex: i }) => (
                     <tr
-                      key={i}
+                      key={x.eventId}
                       onClick={() => {
                         wrap(i);
                         setTab("event");
@@ -391,20 +425,22 @@ function App() {
                           {i + 1}
                         </button>
                       </td>
-                      <td>{(i * 0.018).toFixed(3)}s</td>
-                      <td>{addresses[x.from]}</td>
-                      <td>{addresses[x.to]}</td>
-                      <td>{p.title}</td>
+                      <td>{String(i + 1).padStart(2, "0")}</td>
+                      <td>{endpointAddress(p.id, x, i, "from")}</td>
+                      <td>{endpointAddress(p.id, x, i, "to")}</td>
+                      <td>{x.protocol}</td>
                       <td>{x.info}</td>
                       <td>{x.size}</td>
                     </tr>
                   ))}
+                  {!visibleEvents.length && <tr><td colSpan={7}>No hay operaciones atribuidas a capa {layer} en esta simulación.</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
         </section>
         <aside className="panel details">
+          <div className="details-heading"><span>03 / ESTUDIO</span><strong>Guía de aprendizaje</strong></div>
           <nav className="detail-tabs" aria-label="Panel contextual">
             {(
               [
@@ -468,6 +504,16 @@ function App() {
                   </span>
                 </div>
               </div>
+              <div className="protocol-education">
+                <b>ESTÁNDARES / RFC</b>
+                <p>{p.standards.join(" · ")}</p>
+                <b>CLASIFICACIÓN OSI</b>
+                <p>{p.osiRationale}</p>
+                <b>FLUJO Y ESTADOS</b>
+                <p>{p.lifecycle}</p>
+                <b>RIESGOS Y DEFENSA</b>
+                <p>{p.security}</p>
+              </div>
               <div className="inspector-layers">
                 {layers.map((l) => (
                   <button
@@ -500,7 +546,18 @@ function App() {
                 <strong>
                   {stepIndex + 1}. {current.name}
                 </strong>
+                <div className="event-classification">
+                  <span>Operación de <b>{current.protocol}</b> · responsable L{current.layer}</span>
+                  <span>Capas relacionadas: {current.relatedLayers.map((n) => `L${n}`).join(" · ")}</span>
+                  <span>Evidencia observable desde: {current.observableLayers.map((n) => `L${n}`).join(" · ")}</span>
+                  {(current.logicalSource !== current.from || current.logicalDestination !== current.to || current.nextHop !== current.to) && <>
+                    <span>Transmisor de este salto: <b>{deviceNames[current.from]}</b> → <b>{deviceNames[current.to]}</b></span>
+                    <span>Datagrama lógico: <b>{deviceNames[current.logicalSource]}</b> → <b>{deviceNames[current.logicalDestination]}</b> · siguiente salto: <b>{deviceNames[current.nextHop]}</b></span>
+                  </>}
+                  {current.animation === "contained" && <span>Inspección semántica: contenido del paquete anterior; no genera una segunda animación.</span>}
+                </div>
                 <p>{current.detail}</p>
+                <small className="scope-note">{current.observabilityNote}</small>
                 {Object.entries(current.fields).map(([k, v]) => (
                   <div className="field" key={k}>
                     <span>{k}</span>
@@ -516,8 +573,7 @@ function App() {
                 Abrir escenario Blue Team de capa {layer} →
               </button>
               <p className="disclaimer">
-                Campos, tiempos y tamaños ilustrativos. No es una captura ni una
-                implementación completa de los protocolos.
+                El orden es cronológico, sin escala temporal. Campos y tamaños son sintéticos; no representan una captura real ni una implementación completa. La selección por capa filtra operaciones por capa responsable, no por las capas que las transportan.
               </p>
             </div>
           )}

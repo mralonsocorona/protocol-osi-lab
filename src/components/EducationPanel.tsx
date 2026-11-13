@@ -2,6 +2,24 @@ import { useState } from "react";
 import { lessonFor, relatedTechnologies } from "../education";
 import type { LayerNumber } from "../education";
 import { protocols } from "../data";
+const references = [
+  ["TCP · RFC 9293", "https://www.rfc-editor.org/rfc/rfc9293.html"],
+  ["IPv4 · RFC 791", "https://www.rfc-editor.org/rfc/rfc791.html"],
+  ["IPv6 · RFC 8200", "https://www.rfc-editor.org/rfc/rfc8200.html"],
+  ["ARP · RFC 826", "https://www.rfc-editor.org/rfc/rfc826.html"],
+  ["NDP · RFC 4861", "https://www.rfc-editor.org/rfc/rfc4861.html"],
+  ["DNS · RFC 1034/1035", "https://www.rfc-editor.org/rfc/rfc1034.html"],
+  ["DHCPv4 · RFC 2131", "https://www.rfc-editor.org/rfc/rfc2131.html"],
+  ["BGP · RFC 4271", "https://www.rfc-editor.org/rfc/rfc4271.html"],
+  ["BGP policy · RFC 8212", "https://www.rfc-editor.org/rfc/rfc8212.html"],
+  ["NTPv4 · RFC 5905", "https://www.rfc-editor.org/rfc/rfc5905.html"],
+  ["SNMP · RFC 3411", "https://www.rfc-editor.org/rfc/rfc3411.html"],
+  ["RADIUS/1.1 · RFC 9765 (Experimental)", "https://www.rfc-editor.org/rfc/rfc9765.html"],
+  ["TLS 1.3 · RFC 9846", "https://www.rfc-editor.org/info/rfc9846/"],
+  ["QUIC · RFC 9000/9001", "https://www.rfc-editor.org/rfc/rfc9000.html"],
+  ["HTTP/3 · RFC 9114", "https://www.rfc-editor.org/rfc/rfc9114.html"],
+  ["WireGuard · especificación oficial", "https://www.wireguard.com/protocol/"],
+];
 export function EducationPanel({
   layer,
   onProtocol,
@@ -51,6 +69,12 @@ export function EducationPanel({
         <article className="technology-detail">
           <b>{technology.name}</b>
           <p>{technology.summary}</p>
+          <small>ESTÁNDARES / REFERENCIAS</small>
+          <p>{technology.standards.join(" · ")}</p>
+          <small>FUNCIONAMIENTO</small>
+          <p>{technology.operation}</p>
+          <small>SEGURIDAD / OBSERVABILIDAD</small>
+          <p>{technology.security}</p>
           {technology.caveat && (
             <p className="scope-note">{technology.caveat}</p>
           )}
@@ -104,33 +128,7 @@ export function EducationPanel({
           bibliotecas; las asociaciones del catálogo son educativas, no
           equivalencias exactas.
         </p>
-        <p>
-          Fuentes:{" "}
-          <a
-            href="https://www.rfc-editor.org/rfc/rfc9000.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            QUIC · RFC 9000
-          </a>
-          ,{" "}
-          <a
-            href="https://www.rfc-editor.org/rfc/rfc8446.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            TLS · RFC 8446
-          </a>
-          ,{" "}
-          <a
-            href="https://www.rfc-editor.org/rfc/rfc826.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            ARP · RFC 826
-          </a>
-          .
-        </p>
+        <p>Fuentes primarias: {references.map(([label, url], i) => <span key={url}>{i > 0 ? ", " : ""}<a href={url} target="_blank" rel="noreferrer">{label}</a></span>)}.</p>
       </details>
     </div>
   );
@@ -188,6 +186,18 @@ export function BlueTeamPanel({ layer }: { layer: LayerNumber }) {
             <li key={m}>{m}</li>
           ))}
         </ul>
+      </section>
+      <section>
+        <h3>Herramientas de investigación</h3>
+        <ul>{s.tools.map((tool) => <li key={tool}>{tool}</li>)}</ul>
+      </section>
+      <section>
+        <h3>Falsos positivos que comprobar</h3>
+        <p>{s.falsePositives}</p>
+      </section>
+      <section>
+        <h3>Límites de visibilidad</h3>
+        <p>{s.limits}</p>
       </section>
       <small>Selecciona otra capa OSI para abrir su escenario.</small>
     </div>

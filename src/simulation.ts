@@ -1,4 +1,5 @@
 import { protocols } from "./data";
+import type { Protocol } from "./data";
 import type { LayerNumber } from "./education";
 export type LabState = {
   pid: string;
@@ -19,7 +20,8 @@ export const initialState: LabState = {
   playing: false,
 };
 export function labReducer(state: LabState, action: LabAction): LabState {
-  const p = protocols.find((p) => p.id === state.pid)!;
+  const p = protocols.find((p) => p.id === state.pid);
+  const finalStep = Math.max(0, (p?.steps.length ?? 0) - 1);
   switch (action.type) {
     case "layer":
       return { ...state, layer: action.layer };
@@ -30,24 +32,51 @@ export function labReducer(state: LabState, action: LabAction): LabState {
     case "seek":
       return {
         ...state,
-        step: Math.max(0, Math.min(p.steps.length - 1, action.step)),
+        step: Math.max(0, Math.min(finalStep, action.step)),
         playing: false,
       };
     case "toggle":
+      if (!p || !p.steps.length) return { ...state, step: 0, playing: false };
       return {
         ...state,
-        step: state.step === p.steps.length - 1 ? 0 : state.step,
+        step: state.step === finalStep ? 0 : state.step,
         playing: !state.playing,
       };
     case "tick":
-      return state.playing
+      return state.playing && p && p.steps.length
         ? {
             ...state,
-            step: Math.min(state.step + 1, p.steps.length - 1),
-            playing: state.step + 1 < p.steps.length - 1,
+            step: Math.min(state.step + 1, finalStep),
+            playing: state.step + 1 < finalStep,
           }
         : state;
   }
+}
+
+/** Rejects malformed synthetic runs before they can reach the visual player. */
+export function validateSimulation(protocol: Pick<Protocol, "id" | "steps">): string[] {
+  const problems: string[] = [];
+  if (!protocol.steps.length) return ["La simulación no tiene eventos."];
+  const ids = new Set<string>();
+  const endpoints = new Set(["client", "router", "internet", "server"]);
+  protocol.steps.forEach((step, index) => {
+    if (!step.eventId || ids.has(step.eventId)) problems.push(`Evento ${index + 1}: id ausente o duplicado.`);
+    ids.add(step.eventId);
+    if (step.simulationRef.protocolId !== protocol.id || step.simulationRef.stepIndex !== index)
+      problems.push(`Evento ${index + 1}: referencia de simulación inválida.`);
+    if (!step.protocol || !step.name || !step.detail || !step.info || !step.blue)
+      problems.push(`Evento ${index + 1}: faltan datos de inspector.`);
+    if (step.layer < 1 || step.layer > 7 || !step.relatedLayers.includes(step.layer))
+      problems.push(`Evento ${index + 1}: clasificación OSI inválida.`);
+    if (![step.from, step.to, step.logicalSource, step.logicalDestination, step.nextHop].every((node) => endpoints.has(node)))
+      problems.push(`Evento ${index + 1}: participante o siguiente salto inválido.`);
+    if (step.animation === "contained") {
+      const previous = protocol.steps[index - 1];
+      if (!previous || previous.from !== step.from || previous.to !== step.to)
+        problems.push(`Evento ${index + 1}: contenido sin paquete previo compatible.`);
+    }
+  });
+  return problems;
 }
 export type EncapsulationUnit = {
   id: string;
