@@ -1,8 +1,20 @@
 # Auditoría académica de Atlas OSI Academia
 
 **Fecha de auditoría:** 2026-11-14<br />
-**Commit base auditado:** `81fd28a` (`main`, revisión anterior a las correcciones de esta entrega).<br />
-**Alcance de la revalidación:** fuentes vigentes y árbol de trabajo de esta entrega; pruebas de contenido, navegación, evaluaciones y operación offline ejecutadas antes del commit que incorpora este informe.
+**Commit base auditado:** `4caf111` (`main`, estado previo a esta entrega).<br />
+**Alcance de la revalidación:** árbol de trabajo de esta entrega. `npm run typecheck`, `npm run build` y la suite Playwright (38 pruebas) se ejecutaron antes de preparar el commit; no se hizo push ni despliegue.
+
+## Revisión de cobertura y cambios de esta entrega
+
+El registro [`trazabilidad-academica.md`](./trazabilidad-academica.md) enumera las 224 preguntas de capítulo e integrales, los conceptos enlazados, sus secciones de prerrequisito, la respuesta explicada y los distractores. Se regenera con `node scripts/generate-academic-trace.mjs`. Las 210 preguntas por capítulo tienen un `conceptIds` no vacío y uno o más `prerequisiteSectionIds`; la evaluación integral enlaza sus conceptos a las secciones del curso. La validación comprueba que IDs, definiciones, referencias internas y secciones existen y que las preguntas de capítulo no dependen de un concepto cuya única sección declarada sea posterior al examen.
+
+En esta revisión se ampliaron los contenidos que sustentan preguntas sobre `SYN_RECV`/SYN flood, PHY y repetidores, estados `LOWER_UP`, CRC/FCS y RTT, DHCP snooping/DAI/802.1X/RADIUS, NetFlow/IPFIX, BGP/RPKI/ROA/uRPF, TLS/SNI/ECH, DNS/NXDOMAIN, estados HTTP, RPC, Base64, UTF-8 y `file(1)`. Se agregaron fichas con definiciones sencillas y técnicas, ejemplos, capas, relaciones, secciones y referencias. Las anotaciones en texto usan botones semánticos controlados; la búsqueda global reconoce siglas y sinónimos sin red ni backend.
+
+Se revisaron manualmente los casos de `SYN_RECV`, el contraste entre RTT/retransmisiones y una hipótesis de flood, la interpretación de ARP spoofing frente a failover, el alcance de DNS tunneling, la diferencia entre PHY y capa física OSI, y las referencias MITRE/NIST mostradas. Las pruebas estructurales no prueban por sí solas exactitud académica, plausibilidad de todos los distractores ni ausencia universal de ambigüedad. La tabla conserva el enunciado y distractores para facilitar esa revisión editorial; la revisión semántica exhaustiva de cada alternativa sigue siendo una limitación pendiente y no se presenta como certificada por automatización.
+
+**Integraciones contrastadas en fuentes oficiales:** MITRE ATT&CK `T1557.002` (ARP Cache Poisoning, versión 1.1 consultada) y `T1071.004` (DNS, versión 1.4 consultada); mapeos condicionales por escenario con evidencia y límites. NIST CSF 2.0 usa sus seis funciones, sin categorías no verificadas ni declaración de cumplimiento. NIST SP 800-61 Rev. 3 se cita en estado final (abril de 2025), que sustituye Rev. 2. Se añadieron verificaciones estructurales que restringen los IDs y la taxonomía del marco.
+
+**Resultado de operación:** build de producción correcto; 38/38 pruebas Playwright aprobadas, incluidas navegación, búsqueda y definiciones con teclado, vista móvil estrecha, evaluación y repaso, rutas `/` y `/capas`, preferencias/marcadores y acceso local al diccionario tras cargar offline. El service worker mantiene scope `/capas` y precache estático; las referencias externas requieren conexión.
 
 ## Alcance y método
 

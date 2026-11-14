@@ -3,6 +3,7 @@ import { createIntegratedAttempt, createLayerAttempt, isQuestionCorrect, scoreAs
 import type { AssessmentKind } from "./assessment-bank";
 import type { AcademyLayer } from "./academy";
 import type { AssessmentResult } from "./assessment-engine";
+import { knowledgeById, sectionLabel } from "./knowledge";
 
 type Props = {
   kind: AssessmentKind;
@@ -10,13 +11,15 @@ type Props = {
   previousQuestionIds?: string[];
   onClose: () => void;
   onFinish: (details: { result: AssessmentResult; questions: PreparedQuestion[]; answers: AnswerMap; seenIds: string[] }) => void;
+  onOpenTerm: (id: string) => void;
+  onOpenSection: (sectionId: string) => void;
 };
 
 function correctText(question: PreparedQuestion): string {
   return question.options.filter((option) => question.correctOptionIds.includes(option.id)).map((option) => option.text).join(" · ");
 }
 
-export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClose, onFinish }: Props) {
+export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClose, onFinish, onOpenTerm, onOpenSection }: Props) {
   const [questionSet] = useState(() => kind === "integrated"
     ? { questions: createIntegratedAttempt(), seenIds: [], cycleReset: false }
     : createLayerAttempt(layer, previousQuestionIds));
@@ -82,6 +85,23 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
   const categories = useMemo(() => Object.entries(result?.byCategory ?? {}), [result]);
   const topics = useMemo(() => Object.entries(result?.byTopic ?? {}).sort(([left], [right]) => left.localeCompare(right, "es")), [result]);
   const missedTopics = result ? [...new Set(questions.filter((question) => result.missedIds.includes(question.id)).map((question) => question.topic))] : [];
+  const conceptOutcomes = useMemo(() => {
+    const outcomes = new Map<string, { correct: boolean; missed: boolean }>();
+    if (!result) return outcomes;
+    for (const question of questions) {
+      const missed = result.missedIds.includes(question.id);
+      for (const id of question.conceptIds) {
+        const outcome = outcomes.get(id) ?? { correct: false, missed: false };
+        outcome.correct ||= !missed;
+        outcome.missed ||= missed;
+        outcomes.set(id, outcome);
+      }
+    }
+    return outcomes;
+  }, [result, questions]);
+  const missedConceptIds = [...conceptOutcomes].filter(([, outcome]) => outcome.missed).map(([id]) => id);
+  const masteredConceptIds = [...conceptOutcomes].filter(([, outcome]) => outcome.correct && !outcome.missed).map(([id]) => id);
+  const recommendedSections = result ? [...new Set(questions.filter((question) => result.missedIds.includes(question.id)).map((question) => question.prerequisiteSectionIds[0]).filter(Boolean))] : [];
 
   return (
     <div className="academy-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
@@ -104,6 +124,12 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
             </section>
             <h3 className="review-heading">Respuestas razonadas</h3>
             <p className="assessment-note">{result.missedIds.length ? `Prioriza el repaso de ${missedTopics.join(", ")}.` : "Respondiste correctamente todas las preguntas de este intento."}</p>
+            <section className="assessment-concept-summary" aria-label="Conceptos dominados y por repasar">
+              {masteredConceptIds.length > 0 && <div><h3>Conceptos dominados</h3><p>{masteredConceptIds.map((id) => knowledgeById.get(id)).filter((concept) => Boolean(concept)).map((concept) => <button type="button" key={concept!.id} onClick={() => onOpenTerm(concept!.id)}>{concept!.name}</button>)}</p></div>}
+              {missedConceptIds.length > 0 && <div><h3>Conceptos que requieren repaso</h3><p>{missedConceptIds.map((id) => knowledgeById.get(id)).filter((concept) => Boolean(concept)).map((concept) => <button type="button" key={concept!.id} onClick={() => onOpenTerm(concept!.id)}>{concept!.name}</button>)}</p></div>}
+              {recommendedSections.length > 0 && <div><h3>Secciones recomendadas</h3><ul>{recommendedSections.map((id) => <li key={id}><button type="button" onClick={() => onOpenSection(id)}>{sectionLabel(id)}</button></li>)}</ul></div>}
+              <button type="button" className="assessment-dictionary-link" onClick={() => onOpenTerm(missedConceptIds[0] ?? masteredConceptIds[0] ?? "phy")}>Abrir Diccionario</button>
+            </section>
             <ol className="assessment-review-list">{questions.map((question, itemIndex) => {
               const correct = isQuestionCorrect(question, answers[question.id] ?? []);
               const selectedText = question.options.filter((option) => (answers[question.id] ?? []).includes(option.id)).map((option) => option.text);
@@ -113,6 +139,10 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
                 {selectedText.length > 0 && <p><strong>Tu respuesta:</strong> {selectedText.join(" · ")}</p>}
                 {!correct && <p><strong>Respuesta esperada:</strong> {correctText(question)}</p>}
                 <p>{question.explanation}</p>
+                <div className="assessment-review-links">
+                  <button type="button" onClick={() => onOpenSection(question.prerequisiteSectionIds[0])}>Repasar este concepto · {sectionLabel(question.prerequisiteSectionIds[0])}</button>
+                  {question.conceptIds.slice(0, 3).map((id) => knowledgeById.get(id)).filter((concept) => Boolean(concept)).map((concept) => <button type="button" key={concept!.id} onClick={() => onOpenTerm(concept!.id)}>Diccionario · {concept!.name}</button>)}
+                </div>
               </li>;
             })}</ol>
             <div className="assessment-actions"><button type="button" className="assessment-primary" onClick={close}>{kind === "integrated" ? "Volver a la biblioteca" : "Volver al capítulo"}</button></div>
@@ -133,6 +163,8 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
             </fieldset>
             {confirmed && <div className={isQuestionCorrect(current, selected) ? "assessment-feedback is-correct" : "assessment-feedback is-incorrect"} role="status">
               <strong>{isQuestionCorrect(current, selected) ? "Respuesta correcta" : "Revisa esta distinción"}</strong><p>{current.explanation}</p>
+              <button type="button" className="assessment-feedback-link" onClick={() => onOpenSection(current.prerequisiteSectionIds[0])}>Repasar esta sección · {sectionLabel(current.prerequisiteSectionIds[0])}</button>
+              {current.conceptIds.slice(0, 2).map((id) => knowledgeById.get(id)).filter((concept) => Boolean(concept)).map((concept) => <button type="button" className="assessment-feedback-link" key={concept!.id} onClick={() => onOpenTerm(concept!.id)}>Diccionario · {concept!.name}</button>)}
             </div>}
             {questionSet.cycleReset && index === 0 && <p className="assessment-note">Comenzó un nuevo ciclo de preguntas. Las preguntas se repiten después de completar el banco disponible.</p>}
             <div className="assessment-actions">

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { layerQuestionBank, integratedQuestionBank, type AssessmentCategory, type AssessmentQuestion } from "../src/assessment-bank";
 import { createIntegratedAttempt, createLayerAttempt, isQuestionCorrect, scoreAssessment, shuffle } from "../src/assessment-engine";
 import { bestLayerScore, clearStudyProgress, loadStudyState, normalizeStudyState, recordAttempt, saveStudyState, STUDY_STORAGE_KEY, type StudyState } from "../src/academy-state";
+import { knowledgeById, knowledgeConcepts, sectionKeys, termAnnotationsBySection } from "../src/knowledge";
 
 const layers = [1, 2, 3, 4, 5, 6, 7] as const;
 const categories: AssessmentCategory[] = ["fundamentals", "protocols", "workflow", "linux", "diagnosis", "red-team", "blue-team"];
@@ -88,6 +89,45 @@ test("the integrated bank has multi-layer scenarios and the exam selects a balan
   expect(new Set(attempt.filter((question) => question.layer !== "integrated").map((question) => question.layer))).toEqual(new Set(layers));
   expect(attempt.filter((question) => question.category === "blue-team").length).toBeGreaterThanOrEqual(9);
   expect(attempt.filter((question) => question.layer === "integrated")).toHaveLength(7);
+});
+
+test("dictionary records and every question prerequisite resolve to material taught before its assessment", () => {
+  const sectionIds = new Set(Array.from({ length: 7 }, (_, index) => index + 1).flatMap((layer) => sectionKeys.map((key) => `l${layer}-${key}`)));
+  expect(new Set(knowledgeConcepts.map((concept) => concept.id)).size).toBe(knowledgeConcepts.length);
+  for (const concept of knowledgeConcepts) {
+    expect(concept.simpleDefinition.length, `${concept.id} simple definition`).toBeGreaterThan(20);
+    expect(concept.technicalDefinition.length, `${concept.id} technical definition`).toBeGreaterThan(30);
+    expect(concept.example.length, `${concept.id} example`).toBeGreaterThan(15);
+    expect(concept.layers.length, `${concept.id} layers`).toBeGreaterThan(0);
+    expect(concept.sectionIds.length, `${concept.id} course sections`).toBeGreaterThan(0);
+    expect(concept.references.length, `${concept.id} references`).toBeGreaterThan(0);
+    expect(concept.references.every((reference) => /^https:\/\//.test(reference.url)), `${concept.id} reference URL`).toBeTruthy();
+    expect(concept.relatedConceptIds.every((id) => knowledgeById.has(id)), `${concept.id} related concepts`).toBeTruthy();
+    expect(concept.sectionIds.every((id) => sectionIds.has(id)), `${concept.id} sections`).toBeTruthy();
+  }
+  for (const [sectionId, conceptIds] of Object.entries(termAnnotationsBySection)) {
+    expect(sectionIds.has(sectionId), `${sectionId} annotation section`).toBeTruthy();
+    expect(conceptIds.every((id) => knowledgeById.has(id)), `${sectionId} annotation terms`).toBeTruthy();
+  }
+
+  const allQuestions = [...layerQuestionBank, ...integratedQuestionBank];
+  const unteachableConcepts = allQuestions.filter((question) => question.layer !== "integrated").flatMap((question) => question.conceptIds.filter((conceptId) => !knowledgeById.get(conceptId)!.sectionIds.some((id) => Number(id.match(/^l([1-7])-/)?.[1]) <= question.layer)).map((conceptId) => `${question.id}:${conceptId}`));
+  expect(unteachableConcepts).toEqual([]);
+  for (const question of allQuestions) {
+    expect(question.conceptIds.length, `${question.id} concepts`).toBeGreaterThan(0);
+    expect(question.prerequisiteSectionIds.length, `${question.id} prerequisites`).toBeGreaterThan(0);
+    expect(question.conceptIds.every((id) => knowledgeById.has(id)), `${question.id} concept IDs`).toBeTruthy();
+    expect(question.prerequisiteSectionIds.every((id) => sectionIds.has(id)), `${question.id} section IDs`).toBeTruthy();
+    expect(question.conceptIds.every((id) => knowledgeById.get(id)!.sectionIds.some((sectionId) => question.prerequisiteSectionIds.includes(sectionId))), `${question.id} concepts point to their teaching sections`).toBeTruthy();
+    if (question.layer !== "integrated") {
+      expect(question.prerequisiteSectionIds[0]).toBe(`l${question.layer}-${question.sectionRef}`);
+      expect(question.prerequisiteSectionIds.every((id) => Number(id.match(/^l([1-7])-/)?.[1]) <= question.layer), `${question.id} cannot rely on a later chapter`).toBeTruthy();
+      expect(question.conceptIds.every((conceptId) => {
+        const concept = knowledgeById.get(conceptId)!;
+        return concept.sectionIds.some((id) => Number(id.match(/^l([1-7])-/)?.[1]) <= question.layer && question.prerequisiteSectionIds.includes(id));
+      }), `${question.id} every assessed concept has an earlier or current teaching section`).toBeTruthy();
+    }
+  }
 });
 
 test("study state migrates older versions, tolerates corrupt data, records attempts and preserves reader preferences on reset", () => {

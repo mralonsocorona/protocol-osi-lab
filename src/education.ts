@@ -11,6 +11,15 @@ export type Scenario = {
   tools: string[];
   falsePositives: string;
   limits: string;
+  mitre?: Array<{
+    id: string; name: string; tactic: string; version: string; description: string; scenarioRelation: string;
+    evidence: string; limitations: string; url: string;
+  }>;
+  nist?: Array<{
+    framework: "NIST CSF 2.0";
+    function: "Govern" | "Identify" | "Protect" | "Detect" | "Respond" | "Recover";
+    reason: string;
+  }>;
 };
 export type Lesson = {
   n: LayerNumber;
@@ -122,6 +131,20 @@ export const lessons: Lesson[] = [
       tools: ["Wireshark: arp", "tcpdump -e arp", "Tabla MAC/ARP y logs del switch", "Suricata solo con reglas habilitadas y tráfico visible"],
       falsePositives: "Failover de gateway, NIC teaming, cambios de VM o cachés vencidas pueden cambiar IP-MAC legítimamente.",
       limits: "La captura debe estar en el dominio de broadcast correcto. Un IDS no alerta por toda respuesta ARP sin regla, sensor y topología adecuados.",
+      mitre: [{
+        id: "T1557.002", name: "ARP Cache Poisoning", tactic: "Credential Access · Collection", version: "1.1",
+        description: "MITRE ATT&CK describe el envenenamiento ARP para situarse entre dispositivos y habilitar comportamientos posteriores como captura o manipulación de tráfico.",
+        scenarioRelation: "Aplicable solo si la nueva asociación ARP es parte de un comportamiento intencional de envenenamiento que busca desviar tráfico. El cambio IP-MAC por sí solo no justifica esta técnica.",
+        evidence: "Respuestas ARP, cambios de caché, MAC/puerto de switch, topología, inventario, hora y registros de failover.",
+        limitations: "ARP no autentica asociaciones, pero un failover, teaming, migración de VM o cambio aprobado puede producir el mismo indicador. La evidencia de red no atribuye identidad ni intención por sí sola.",
+        url: "https://attack.mitre.org/techniques/T1557/002/",
+      }],
+      nist: [
+        { framework: "NIST CSF 2.0", function: "Identify", reason: "Cotejar inventario de gateways, puertos, activos y cambios autorizados aporta contexto para evaluar el riesgo." },
+        { framework: "NIST CSF 2.0", function: "Protect", reason: "DAI, bindings confiables y controles de acceso a puertos son ejemplos de salvaguardas preventivas, si la topología los soporta." },
+        { framework: "NIST CSF 2.0", function: "Detect", reason: "Vigilar cambios IP-MAC y correlacionarlos con respuestas ARP y puertos ayuda a identificar actividad que requiere investigación." },
+        { framework: "NIST CSF 2.0", function: "Respond", reason: "Preservar evidencia y contener según impacto después de validar failover y contexto es una actividad de respuesta." },
+      ],
     },
   },
   {
@@ -219,6 +242,12 @@ export const lessons: Lesson[] = [
       tools: ["Wireshark: tcp.flags.syn == 1 && tcp.flags.ack == 0", "Wireshark: tcp.analysis.retransmission", "tcpdump", "ss/netstat y métricas del servidor", "Suricata con reglas activas", "NetFlow/IPFIX"],
       falsePositives: "Pérdida, RTT alto, balanceadores, NAT o clientes que abandonan conexiones pueden producir SYN incompletos.",
       limits: "Capturas asimétricas o con pérdida distorsionan handshake y retransmisiones; SYN altos no prueban agotamiento malicioso.",
+      nist: [
+        { framework: "NIST CSF 2.0", function: "Protect", reason: "Límites y protecciones de apertura TCP o mitigación aguas arriba pueden reducir impacto cuando se dimensionan y prueban." },
+        { framework: "NIST CSF 2.0", function: "Detect", reason: "Métricas de handshake, colas, disponibilidad y pérdida permiten reconocer degradación y generar una hipótesis." },
+        { framework: "NIST CSF 2.0", function: "Respond", reason: "Correlacionar fuentes y aplicar contención proporcional al impacto se relaciona con respuesta a incidentes." },
+        { framework: "NIST CSF 2.0", function: "Recover", reason: "Validar restauración del servicio y revisar lecciones/capacidad después de la mitigación corresponde a recuperación." },
+      ],
     },
   },
   {
@@ -364,6 +393,20 @@ export const lessons: Lesson[] = [
       tools: ["Wireshark: dns.qry.name || http.request", "Zeek dns.log y conn.log con tráfico DNS observable", "Suricata con reglas activas y datasets", "Logs DNS/firewall y SIEM", "Wazuh para logs de endpoints conectados"],
       falsePositives: "CDN, EDR, telemetría y actualizadores pueden producir dominios largos, alta frecuencia o muchos NXDOMAIN.",
       limits: "DoH/DoT/QUIC, TLS y falta de logs reducen visibilidad. Zeek/Suricata requieren tráfico observable, configuración y reglas apropiadas; alertas necesitan triage.",
+      mitre: [{
+        id: "T1071.004", name: "Application Layer Protocol: DNS", tactic: "Command and Control", version: "1.4",
+        description: "MITRE ATT&CK describe el uso adversario de DNS para comunicar órdenes o resultados y mezclarlos con tráfico habitual.",
+        scenarioRelation: "Relación condicional: solo corresponde si la investigación respalda uso de DNS como canal de mando y control. Subdominios largos, volumen o NXDOMAIN aislados son indicadores, no prueba de C2.",
+        evidence: "Consulta/respuesta del resolver, frecuencia y tamaños, tipos de registro, destino, proceso y propietario del endpoint, más logs de proxy y cambios de software.",
+        limitations: "CDN, agentes de seguridad y aplicaciones pueden generar nombres variados. DoH/DoT, caché y visibilidad parcial limitan el sensor. ATT&CK no determina intención ni atribuye un actor.",
+        url: "https://attack.mitre.org/techniques/T1071/004/",
+      }],
+      nist: [
+        { framework: "NIST CSF 2.0", function: "Identify", reason: "Inventario de endpoints, resolvers, procesos permitidos y servicios ayuda a contextualizar destinos nuevos." },
+        { framework: "NIST CSF 2.0", function: "Protect", reason: "Resolver corporativo y política de salida DNS controlada pueden reducir canales no autorizados cuando el diseño lo permite." },
+        { framework: "NIST CSF 2.0", function: "Detect", reason: "Analizar volumen, periodicidad, respuesta y proceso de origen permite detectar patrones que requieren triage." },
+        { framework: "NIST CSF 2.0", function: "Respond", reason: "Preservar registros e investigar el proceso antes de aplicar contención mantiene una respuesta proporcional a la evidencia." },
+      ],
     },
   },
 ];

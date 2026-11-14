@@ -3,6 +3,7 @@ import { academyLessons } from "../src/academy";
 import { chapterRecaps, chapterReferences } from "../src/academy-references";
 import { lessons as investigationLessons } from "../src/education";
 import { estimatedMinutes } from "../src/Academy";
+import { mitreReferences, nistReferences, knowledgeConcepts } from "../src/knowledge";
 
 const layerNames = [
   "Física",
@@ -48,6 +49,23 @@ test("all seven lessons contain detailed technical, defensive and authorized off
   const combined = academyLessons.map((lesson) => [lesson.name, ...lesson.fundamentals, lesson.communication].join(" ")).join(" ");
   for (const concept of ["TCP/IP", "Ethernet", "ARP", "IPv4", "IPv6", "ICMP", "TCP", "UDP", "DNS", "HTTP", "TLS", "QUIC"])
     expect(combined).toContain(concept);
+});
+
+test("MITRE and NIST scenario references use verified IDs and the CSF 2.0 function set", () => {
+  const allScenarios = investigationLessons.map((lesson) => lesson.scenario);
+  const mitreMappings = allScenarios.flatMap((scenario) => scenario.mitre ?? []);
+  expect(mitreMappings.map((mapping) => mapping.id).sort()).toEqual(["T1071.004", "T1557.002"]);
+  const officialMappings = [mitreReferences.arpPoisoning, mitreReferences.dnsC2];
+  expect(mitreMappings.every((mapping) => officialMappings.some((reference) => reference.id === mapping.id && mapping.url === reference.url && mapping.version === reference.version))).toBeTruthy();
+  expect(mitreMappings.every((mapping) => /^T\d{4}(\.\d{3})?$/.test(mapping.id) && /^\d+\.\d+$/.test(mapping.version) && mapping.description.length > 40 && mapping.scenarioRelation.length > 40 && mapping.evidence.length > 20 && mapping.limitations.length > 40)).toBeTruthy();
+
+  const functions = new Set(["Govern", "Identify", "Protect", "Detect", "Respond", "Recover"]);
+  const nistMappings = allScenarios.flatMap((scenario) => scenario.nist ?? []);
+  expect(nistMappings.length).toBeGreaterThan(0);
+  expect(nistMappings.every((mapping) => mapping.framework === "NIST CSF 2.0" && functions.has(mapping.function) && mapping.reason.length > 30)).toBeTruthy();
+  expect(nistReferences.csf.version).toBe("2.0");
+  expect(nistReferences.incidentResponse.status).toContain("Final");
+  expect(knowledgeConcepts.every((concept) => concept.references.every((reference) => /^https:\/\//.test(reference.url)))).toBeTruthy();
 });
 
 test("direct route loads the independent seven-layer course", async ({ page }) => {
@@ -99,6 +117,9 @@ test("layer navigation and back-to-top control work on mobile widths", async ({ 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/capas");
   await page.getByRole("button", { name: "Abrir capítulo 1: Física" }).click();
+  for (const [control, exact] of [["Abrir índice del libro", false], ["Abrir Diccionario y Centro de conocimiento", false], ["Lectura", true], ["Guardar marcador de lectura", false]] as const) {
+    await expect(page.getByRole("button", { name: control, exact })).toBeVisible();
+  }
   for (const width of [360, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const layout = await page.evaluate(() => ({
@@ -110,6 +131,10 @@ test("layer navigation and back-to-top control work on mobile widths", async ({ 
         .slice(0, 5),
     }));
     expect(layout.document, `Horizontal overflow at ${width}px: ${JSON.stringify(layout.overflow)}`).toBeLessThanOrEqual(layout.viewport);
+    if (width <= 390) {
+      const caseColumnCount = await page.locator(".academy-case-columns").first().evaluate((element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length);
+      expect(caseColumnCount, `Scenario columns at ${width}px`).toBe(1);
+    }
   }
 
   const backToTop = page.getByRole("button", { name: "Volver arriba" });
@@ -159,6 +184,12 @@ test("manifest, scoped service worker, icons and lesson shell work offline", asy
   await expect(page.getByRole("heading", { level: 1, name: "Aplicación" })).toBeVisible();
   await page.getByRole("button", { name: "Evaluar mis conocimientos" }).click();
   await expect(page.getByRole("dialog", { name: "Evaluar mis conocimientos" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" }).click();
+  const knowledge = page.getByRole("dialog", { name: "Diccionario" });
+  await expect(knowledge).toBeVisible();
+  await knowledge.getByRole("searchbox", { name: "Buscar un término o sigla" }).fill("DNS tunnel");
+  await expect(knowledge.getByRole("button", { name: /DNS tunneling/ })).toBeVisible();
 });
 
 test("laboratory root remains separate and does not register the academy worker", async ({ page }) => {
@@ -190,7 +221,7 @@ test("library estimates, reader preferences, bookmarks and reading progress pers
   await expect(page.locator(".academy-shell")).toHaveCSS("--reader-font-size", "20px");
   await page.getByRole("button", { name: "Guardar marcador de lectura" }).click();
   await expect(page.getByRole("button", { name: "Ir al marcador guardado" })).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, document.querySelector("#blue-team")!.getBoundingClientRect().top + window.scrollY));
+  await page.evaluate(() => window.scrollTo(0, document.querySelector("#l2-blue-team")!.getBoundingClientRect().top + window.scrollY));
   await page.waitForTimeout(650);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("atlas-osi.study.v2") ?? "{}"));
   expect(saved.preferences).toMatchObject({ theme: "sepia", fontSize: 20 });
@@ -201,6 +232,58 @@ test("library estimates, reader preferences, bookmarks and reading progress pers
   await expect(page.getByRole("heading", { level: 1, name: "Enlace" })).toBeVisible();
   await page.getByRole("button", { name: "Abrir índice del libro" }).click();
   await expect(page.getByRole("button", { name: "Continuar" })).toBeVisible();
+});
+
+test("dictionary search, contextual definitions, related concepts and study links work accessibly", async ({ page }) => {
+  await page.goto("/capas#capa-2");
+  await expect(page.getByRole("heading", { level: 1, name: "Enlace" })).toBeVisible();
+  const dictionaryButton = page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" });
+  await dictionaryButton.click();
+  const dialog = page.getByRole("dialog", { name: "Diccionario" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Volver a la lectura" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: "Cerrar diccionario" })).toBeFocused();
+  const search = dialog.getByRole("searchbox", { name: "Buscar un término o sigla" });
+  await search.fill("ARP Cache Poisoning");
+  await dialog.getByRole("button", { name: /ARP spoofing/ }).click();
+  await expect(dialog.getByRole("heading", { level: 3, name: "ARP spoofing" })).toBeVisible();
+  await expect(dialog.locator(".knowledge-definition")).toContainText("Anunciar una asociación IPv4-MAC falsa");
+  await dialog.getByRole("button", { name: "Definición técnica" }).click();
+  await expect(dialog.locator(".knowledge-definition")).toContainText("Manipulación de cachés ARP");
+  await dialog.getByRole("button", { name: "ARP", exact: true }).click();
+  await expect(dialog.getByRole("heading", { level: 3, name: "ARP", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: /Capítulo 2.*Fundamentos/ }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Fundamentos y explicación técnica", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("l2-fundamentos");
+
+  const contextualTerm = page.locator("#l2-fundamentos .glossary-term").filter({ hasText: "ARP" }).first();
+  await contextualTerm.scrollIntoViewIfNeeded();
+  await contextualTerm.focus();
+  const before = await page.evaluate(() => window.scrollY);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { level: 3, name: "ARP", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(contextualTerm).toBeFocused();
+  const after = await page.evaluate(() => window.scrollY);
+  expect(Math.abs(after - before)).toBeLessThan(60);
+});
+
+test("knowledge center remains readable and keyboard closable on a narrow mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto("/capas#capa-1");
+  await page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diccionario" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Capas", exact: true }).click();
+  await expect(dialog.getByRole("heading", { level: 3, name: "Física" })).toBeVisible();
+  const dimensions = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });
 
 test("chapter assessment validates before revealing rationale, scores, saves attempt and restores focus", async ({ page }) => {
@@ -230,6 +313,8 @@ test("chapter assessment validates before revealing rationale, scores, saves att
   await expect(dialog.getByRole("heading", { name: "Rendimiento por tema" })).toBeVisible();
   await expect(dialog.getByText("Razonamiento Blue Team")).toBeVisible();
   await expect(dialog.locator(".assessment-review-list > li")).toHaveCount(10);
+  await expect(dialog.locator(".assessment-review-links")).toHaveCount(10);
+  await expect(dialog.locator(".assessment-review-links").first().getByRole("button", { name: /Repasar este concepto/ })).toBeVisible();
   await dialog.getByRole("button", { name: "Volver al capítulo" }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("atlas-osi.study.v2") ?? "{}"));
   expect(saved.attempts).toHaveLength(1);
@@ -242,6 +327,7 @@ test("integrated assessment presents 25 questions and supports a full review", a
   await page.goto("/capas");
   await page.getByRole("button", { name: "Iniciar evaluación" }).click();
   const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Pregunta 1 de 25")).toBeVisible();
   for (let question = 1; question <= 25; question += 1) {
     await dialog.locator(".assessment-option").first().click();

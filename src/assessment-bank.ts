@@ -1,4 +1,5 @@
 import type { AcademyLayer } from "./academy";
+import { findConceptIds, knowledgeById, sectionId } from "./knowledge";
 
 export type AssessmentCategory = "fundamentals" | "protocols" | "workflow" | "linux" | "diagnosis" | "red-team" | "blue-team";
 export type QuestionKind = "single" | "multiple" | "evidence" | "scenario";
@@ -15,6 +16,8 @@ export type AssessmentQuestion = {
   correctOptionIds: string[];
   explanation: string;
   sectionRef: string;
+  conceptIds: string[];
+  prerequisiteSectionIds: string[];
 };
 
 type Draft = [prompt: string, answers: string[], distractors: string[], explanation: string, sectionRef: string, difficultyOrKind?: string, kind?: string];
@@ -24,6 +27,43 @@ const sectionTopics: Record<string, string> = {
   protocolos: "Protocolos", tecnologias: "Tecnologías", comunicacion: "Flujos de comunicación",
   "blue-team": "Investigación Blue Team", "red-team": "Práctica Red Team", comandos: "Comandos Linux",
   errores: "Errores conceptuales", ejercicios: "Ejercicios de análisis",
+};
+/** Editorially reviewed tags for scenario questions whose concepts are implicit in the wording. */
+const reviewedQuestionConcepts: Record<string, string[]> = {
+  "L1-diagnosis-03": ["carrier", "phy"],
+  "L1-linux-01": ["carrier", "ethtool", "nic"],
+  "L1-workflow-03": ["phy", "ethernet"],
+  "L1-red-team-01": ["phy", "nic"],
+  "L1-red-team-03": ["ethernet", "carrier"],
+  "L1-blue-team-02": ["otdr", "phy"],
+  "L1-blue-team-04": ["wifi", "snr"],
+  "L1-blue-team-05": ["nic", "phy"],
+  "L1-blue-team-07": ["carrier", "phy"],
+  "L1-blue-team-08": ["ethernet", "phy"],
+  "L1-blue-team-10": ["phy", "carrier"],
+  "L1-blue-team-11": ["carrier", "phy"],
+  "L2-red-team-01": ["arp", "mac"],
+  "L3-workflow-01": ["gateway", "routing", "arp"],
+  "L3-workflow-03": ["routing"],
+  "L3-linux-02": ["icmp", "ttl"],
+  "L3-blue-team-09": ["icmp", "ip"],
+  "L3-blue-team-11": ["routing", "bgp"],
+  "L3-blue-team-12": ["ip", "netflow"],
+  "L4-blue-team-03": ["tcp", "nmap"],
+  "L4-blue-team-06": ["tcp", "syn-recv"],
+  "L4-blue-team-07": ["tcp", "syn-recv", "syn-flood"],
+  "L4-blue-team-12": ["nmap", "tcp"],
+  "L4-diagnosis-03": ["tcp", "tls"],
+  "L5-diagnosis-03": ["token", "session"],
+  "L5-blue-team-02": ["token", "session"],
+  "L5-blue-team-04": ["token", "session"],
+  "L5-blue-team-05": ["token", "siem"],
+  "L5-blue-team-09": ["token", "session"],
+  "L6-linux-03": ["file-command", "utf8"],
+  "L7-workflow-01": ["dns", "ip", "routing"],
+  "L7-linux-01": ["dns"],
+  "L7-blue-team-03": ["http-status", "http"],
+  "L7-blue-team-05": ["http-status", "session"],
 };
 const distractorOverrides: Record<string, string[]> = {
   "L1-fundamentals-01": ["La PHY negoció la tasa máxima común entre los extremos", "El enlace usa dúplex full y la configuración coincide en ambos lados", "No aumentan errores físicos en el medio"],
@@ -266,11 +306,23 @@ function question(layer: AcademyLayer | "integrated", category: AssessmentCatego
   if (options.slice(answers.length).some((option) => correctText.has(option.text.trim().toLocaleLowerCase()))) {
     throw new Error(`Un distractor coincide con la respuesta correcta en ${id}.`);
   }
+  // Trace concepts that a learner must interpret from the stem or correct answer;
+  // explanatory mentions alone should not create artificial prerequisites.
+  const inferredConceptIds = findConceptIds(`${prompt} ${answers.join(" ")}`);
+  const conceptIds = [...new Set([...inferredConceptIds, ...(reviewedQuestionConcepts[id] ?? [])])];
+  const prerequisiteSectionIds = new Set<string>();
+  if (layer !== "integrated") prerequisiteSectionIds.add(sectionId(layer, sectionRef));
+  for (const conceptId of conceptIds) {
+    for (const prerequisiteId of knowledgeById.get(conceptId)?.sectionIds ?? []) {
+      const prerequisiteLayer = Number(prerequisiteId.match(/^l([1-7])-/)?.[1]);
+      if (layer === "integrated" || (prerequisiteLayer > 0 && prerequisiteLayer <= layer)) prerequisiteSectionIds.add(prerequisiteId);
+    }
+  }
   return {
     id,
     layer, category, topic: sectionTopics[sectionRef] ?? sectionRef, difficulty, kind, prompt, options,
     correctOptionIds: options.slice(0, answers.length).map((option) => option.id),
-    explanation, sectionRef,
+    explanation, sectionRef, conceptIds, prerequisiteSectionIds: [...prerequisiteSectionIds],
   };
 }
 
@@ -403,14 +455,14 @@ const layerDrafts: Record<AcademyLayer, LayerDraft> = {
       ["Un router informa `ICMP Time Exceeded` durante traceroute. ¿Qué prueba?", ["Ese paquete expiró el TTL/Hop Limit observado y generó respuesta, no que el servicio esté comprometido"], ["El puerto TCP está abierto", "El router autenticó al usuario", "Toda ruta está caída"], "La respuesta permite inferir un salto para esa sonda y momento; filtros y rutas asimétricas limitan la conclusión.", "blue-team", "intermedio", "evidence"],
       ["Una ACL bloquea todos los ICMPv6 y aparecen fallas intermitentes con MTU grande. ¿Qué investigar?", ["Mensajes Packet Too Big y reglas necesarias de Path MTU Discovery"], ["Tráfico ARP de IPv6", "El estado de cookies HTTP", "La tabla CAM de otro dominio"], "Filtrar ICMPv6 requerido puede generar black holes de PMTU. Revisa tipos permitidos y capturas en los puntos de ruta.", "blue-team", "advanced", "scenario"],
       ["¿Qué podría explicar un paquete con origen privado observado al salir por una interfaz externa?", ["Una falla o excepción de NAT/ACL, túnel o medición antes del punto de traducción"], ["Una vulnerabilidad DNS confirmada", "Que el host use MAC pública", "Que TCP cambió el TTL"], "El lugar de captura y las rutas alteran la interpretación. Valida borde, traducción, VRF y filtros anti-spoofing.", "blue-team", "intermedio", "evidence"],
-      ["Un sensor NetFlow no registra el retorno de una sesión. ¿Qué limitación debes verificar?", ["Ubicación del sensor, muestreo, exportación y ruta asimétrica"], ["Que UDP no tiene puertos", "Que IPv4 usa Neighbor Discovery", "Que ICMP cifra el retorno"], "La ausencia en un exportador no demuestra que el paquete nunca existió; revisa cobertura y configuración de observabilidad.", "blue-team", "intermedio", "scenario"],
+      ["Un sensor NetFlow no registra el retorno de un flujo. ¿Qué limitación debes verificar?", ["Ubicación del sensor, muestreo, exportación y ruta asimétrica"], ["Que UDP no tiene puertos", "Que IPv4 usa Neighbor Discovery", "Que ICMP cifra el retorno"], "La ausencia en un exportador no demuestra que el paquete nunca existió; revisa cobertura y configuración de observabilidad.", "blue-team", "intermedio", "scenario"],
       ["¿Qué interpretación de ICMP Destination Unreachable es prudente?", ["Un emisor o router indicó una condición de no alcanzabilidad observada; hay que identificar tipo/código y contexto"], ["La dirección destino es falsa siempre", "Un servicio de aplicación rechazó credenciales", "La ruta se reparó automáticamente"], "El tipo/código y punto que origina la respuesta ayudan a explicar el fallo; políticas pueden generar respuestas administrativas.", "blue-team", "intermedio", "evidence"],
       ["Una IP aparece como origen de escaneo, pero sale detrás de NAT compartido. ¿Qué evidencia falta para atribuir a un host?", ["Logs de traducción con tiempo/puerto y correlación con endpoint o identidad"], ["La MAC remota de Internet", "El hostname del gateway", "Una respuesta DNS inversa solamente"], "NAT comparte direcciones. La tupla y el reloj sincronizado son necesarios para resolver quién originó una conexión.", "blue-team", "advanced", "scenario"],
       ["¿Por qué la fragmentación IP inusual no demuestra evasión maliciosa?", ["Puede ser legítima por MTU/túneles y requiere reensamblado, contexto y perfil del flujo"], ["Porque los routers nunca fragmentan IPv4", "Porque fragmentar cifra datos", "Porque fragmentos solo existen en IPv6"], "VPN, enlaces de MTU distinto y sistemas heredados pueden explicar fragmentación; analiza política, solapamientos y endpoint.", "blue-team", "advanced", "evidence"],
-      ["Un destino no responde a Echo, pero el servicio HTTPS funciona. ¿Qué conclusión es correcta?", ["Echo puede estar filtrado; el servicio observado sí respondió por su protocolo"], ["ICMP prueba que todos los paquetes IP fallan", "El host necesariamente está ocultando malware", "El TLS está roto"], "Los tipos de tráfico se filtran de manera distinta; una prueba de ping no representa disponibilidad de todos los servicios.", "blue-team", "introductorio", "evidence"],
+      ["Un destino no responde a Echo, pero el servicio web funciona. ¿Qué conclusión es correcta?", ["Echo puede estar filtrado; el servicio observado sí respondió por su protocolo"], ["ICMP prueba que todos los paquetes IP fallan", "El host necesariamente está ocultando malware", "El TLS está roto"], "Los tipos de tráfico se filtran de manera distinta; una prueba de ping no representa disponibilidad de todos los servicios.", "blue-team", "introductorio", "evidence"],
       ["¿Qué mitigación reduce suplantación de origen en el borde sin bloquear respuestas válidas?", ["Filtros de ingreso/egreso basados en prefijos esperados y diseño de ruta"], ["Bloquear toda dirección IPv6", "Desactivar el checksum TCP", "Permitir cualquier origen para mejorar compatibilidad"], "Filtrado de origen tipo BCP 38 debe considerar multihoming, rutas y excepciones autorizadas para evitar interrupciones.", "blue-team", "avanzado"],
       ["Un cambio de ruta coincide con una ventana de mantenimiento, pero algunos segmentos quedan inaccesibles. ¿Qué comprobar?", ["Difusión/aceptación, ruta de retorno, políticas, convergencia y pruebas desde varios puntos"], ["Solo que el comando de cambio terminó sin error", "El número de MAC de cada usuario", "La validez de un certificado de aplicación"], "Un cambio exitoso sintácticamente no garantiza conectividad. Verifica plano de control y plano de datos desde fuentes independientes.", "blue-team", "scenario", "scenario"],
-      ["¿Qué es una conclusión proporcionada ante un aumento de destinos externos únicos?", ["Es una desviación que justifica investigar proceso, DNS, política y baseline"], ["Es exfiltración confirmada", "Es normal por definición", "Prueba que un firewall fue evadido"], "Una anomalía inicia hipótesis. Proceso de origen, volumen, nombres, reputación y contexto deciden si hay abuso.", "blue-team", "intermedio", "evidence"],
+      ["¿Qué es una conclusión proporcionada ante un aumento de destinos externos únicos?", ["Es una desviación que justifica identificar proceso, destinos, volumen y línea base"], ["Es exfiltración confirmada", "Es normal por definición", "Prueba que un firewall fue evadido"], "Una anomalía inicia hipótesis. Proceso de origen, volumen, nombres, reputación y contexto deciden si hay abuso.", "blue-team", "intermedio", "evidence"],
     ],
   },
   4: {
@@ -437,7 +489,7 @@ const layerDrafts: Record<AcademyLayer, LayerDraft> = {
     diagnosis: [
       ["Un flujo tiene muchas retransmisiones TCP. ¿Qué hipótesis deben considerarse?", ["Pérdida/congestión, errores de enlace, ruta asimétrica, servidor saturado y captura duplicada"], ["Solo ataque DoS", "Únicamente un MTU demasiado alto", "Una falla de certificado TLS"], "Las retransmisiones muestran que los datos no se confirmaron como se esperaba; la causa requiere correlación extremo a extremo.", "blue-team", "scenario", "scenario"],
       ["Un SYN flood es una hipótesis. ¿Qué dos evidencias la evalúan mejor?", ["Tasa/distribución de SYN y proporción de handshakes completados", "Colas/CPU, pérdida e impacto frente al baseline"], ["Un puerto abierto en Nmap", "Un certificado expirado"], "El estado aislado no prueba ataque; el patrón de carga, impacto y contexto operativo distingue abuso de clientes lentos o pérdida.", "blue-team", "avanzado", "multiple"],
-      ["Una conexión figura `ESTABLISHED`, pero el usuario no logra iniciar sesión. ¿Qué explica la diferencia?", ["El transporte está abierto, pero autenticación o lógica de aplicación aún puede fallar"], ["TCP ya validó credenciales", "La conexión está cifrada necesariamente", "El servicio no acepta datos"], "El handshake TCP solo establece estado de transporte. Revisa TLS, autenticación y logs de aplicación.", "blue-team", "intermedio", "evidence"],
+      ["Una conexión figura `ESTABLISHED`, pero la aplicación no autentica al usuario. ¿Qué explica la diferencia?", ["El transporte está abierto, pero autenticación o lógica de aplicación aún puede fallar"], ["TCP ya validó credenciales", "La conexión está cifrada necesariamente", "El servicio no acepta datos"], "El handshake TCP solo establece estado de transporte. Revisa TLS, autenticación y logs de aplicación.", "blue-team", "intermedio", "evidence"],
     ],
     "red-team": [
       ["¿Qué interpretación de un puerto `open` de Nmap es válida?", ["La sonda obtuvo evidencia de una aplicación escuchando/respondiendo en ese puerto"], ["El servicio es vulnerable", "El acceso no está autenticado", "El host está comprometido"], "Detección de servicio y vulnerabilidad son etapas distintas. Confirma versión/configuración con métodos autorizados.", "red-team", "introductorio"],
