@@ -3,6 +3,12 @@ export type AcademyLayer = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type AcademyLesson = {
   number: AcademyLayer;
   name: string;
+  introduction: string;
+  mainFunctions: { name: string; explanation: string; example?: string }[];
+  memorizationDefinition: string;
+  everydayExample: { analogy: string; limits: string };
+  studySummary: { does: string; dataUnit: string; technologies: string; remember: string[]; avoid: string[] };
+  selfCheck: { question: string; answer: string }[];
   pdu: string;
   objective: string;
   fundamentals: string[];
@@ -22,6 +28,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 1,
     name: "Física",
+    introduction: "La capa física es el conjunto de medios y señales que permite que dos interfaces vecinas intercambien bits. Resuelve el problema de llevar información a través de cobre, fibra o radio. Entrega la señal recuperada a la capa de enlace y recibe de ella los bits que debe transmitir.",
+    mainFunctions: [
+      { name: "Representar bits como señales", explanation: "Los equipos acuerdan cómo distinguir los valores transmitidos en un medio.", example: "Un pulso eléctrico en cobre o un pulso de luz en fibra representa parte de la secuencia." },
+      { name: "Transportar la señal", explanation: "El medio conduce energía entre un transmisor y un receptor.", example: "Par trenzado, fibra y ondas de radio tienen límites y fuentes de interferencia distintos." },
+      { name: "Sincronizar emisor y receptor", explanation: "El receptor necesita reconocer cuándo observar la señal para reconstruir los símbolos." },
+      { name: "Recuperar los bits recibidos", explanation: "El equipo interpreta símbolos y entrega una secuencia de bits a las funciones de enlace." },
+      { name: "Establecer condiciones físicas", explanation: "Algunos enlaces negocian velocidad, dúplex, canal u otros parámetros; depende de la tecnología." },
+    ],
+    memorizationDefinition: "La capa física representa y transporta bits como señales eléctricas, ópticas o de radio a través de un medio. Define características de transmisión que permiten al receptor recuperar la secuencia y entregarla a la capa de enlace.",
+    everydayExample: { analogy: "Imagina que envías destellos de una linterna a otra persona: acuerdan qué significa cada destello y la otra persona los observa para reconstruir el mensaje.", limits: "Una red usa señales mucho más precisas; un símbolo puede representar varios bits y el receptor compensa ruido y distorsión según el estándar." },
+    studySummary: { does: "Transporta señales entre interfaces vecinas y recupera bits para la capa de enlace.", dataUnit: "Bits y símbolos físicos; no hay un encabezado universal de capa 1.", technologies: "Cobre, fibra, radio, NIC, transceptores y repetidores.", remember: ["Portadora activa no garantiza calidad ni conectividad completa.", "Cada tramo físico puede usar medio y velocidad diferentes."], avoid: ["Confundir velocidad nominal con datos útiles de una aplicación.", "Suponer que una captura de paquetes mide potencia óptica o calidad de radio."] },
+    selfCheck: [
+      { question: "¿Qué debe recuperar el receptor antes de que la capa de enlace procese una trama?", answer: "La secuencia de bits representada por las señales recibidas." },
+      { question: "Si una interfaz muestra link up, ¿queda demostrada una aplicación sana?", answer: "No. Solo indica que se detectó el enlace; aún pueden existir errores o fallos en capas superiores." },
+    ],
     pdu: "Bits representados como símbolos",
     objective:
       "Explicar cómo una interfaz convierte bits en señales que pueden viajar por cobre, fibra o radio, y qué puede observarse cuando un enlace se degrada.",
@@ -86,14 +107,31 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 2,
     name: "Enlace",
+    introduction: "La capa de enlace organiza la entrega de tramas dentro de un enlace local, como una LAN conectada por switches. Resuelve cómo identificar al vecino al que se entrega cada unidad sin elegir una ruta por toda la red. Usa la capa física para transmitir señales y recibe paquetes de la capa de red para transportarlos localmente.",
+    mainFunctions: [
+      { name: "Agrupar datos en tramas", explanation: "La trama delimita una unidad que los equipos del enlace pueden reconocer.", example: "Una trama Ethernet identifica direcciones MAC y el tipo de carga que transporta." },
+      { name: "Identificar interfaces locales", explanation: "Direcciones MAC permiten dirigir tramas dentro de una tecnología y un enlace." },
+      { name: "Entregar dentro de una LAN", explanation: "Un switch aprende dónde vio una MAC de origen y consulta esa información para reenviar tramas." },
+      { name: "Compartir el medio", explanation: "La tecnología establece cómo varias interfaces pueden usar el enlace; las reglas dependen del medio." },
+      { name: "Detectar ciertos errores", explanation: "Un campo de comprobación puede advertir que una trama cambió accidentalmente durante la transmisión." },
+    ],
+    memorizationDefinition: "La capa de enlace organiza el envío de tramas entre interfaces de un enlace local. Usa direcciones locales y reglas de acceso o reenvío para entregar cada unidad al siguiente equipo, mientras la capa de red decide cómo llegar a otras redes.",
+    everydayExample: { analogy: "Un switch se parece a un encargado que distribuye correspondencia dentro de un edificio: observa por qué puerta entró cada remitente y usa ese registro para entregar sobres posteriores a esa puerta.", limits: "La analogía simplifica el aprendizaje de direcciones. Un switch normalmente reenvía tramas dentro de una LAN, no decide rutas entre ciudades; también puede inundar una trama si aún desconoce su destino." },
+    studySummary: { does: "Entrega tramas localmente mediante direcciones y reglas del enlace.", dataUnit: "Trama; por ejemplo, una trama Ethernet que lleva un paquete IP.", technologies: "Switches, bridges, Ethernet, Wi-Fi, VLAN, ARP y FCS.", remember: ["El switch aprende la MAC de origen asociada al puerto y a la VLAN.", "Para un destino remoto, el host entrega la trama a la MAC del gateway local."], avoid: ["Confundir MAC con dirección IP o identidad autenticada.", "Creer que FCS cifra o autentica una trama."] },
+    selfCheck: [
+      { question: "¿Qué dirección MAC usa el host cuando envía a una IP fuera de su subred?", answer: "La MAC del siguiente salto local, normalmente la del gateway; la IP destino sigue siendo la remota." },
+      { question: "¿Qué aprende principalmente un switch Ethernet?", answer: "Relaciona MAC de origen observadas con un puerto y una VLAN para decidir el reenvío posterior." },
+    ],
     pdu: "Trama",
     objective:
       "Seguir la entrega de tramas entre vecinos, entender cómo un switch aprende direcciones y relacionar Ethernet, VLAN y ARP sin confundirlos con IP.",
     fundamentals: [
-      "La capa de enlace entrega unidades entre interfaces del mismo enlace lógico. Ethernet usa direcciones MAC de origen y destino; un switch puente aprende la MAC de origen, la asocia a un puerto y una VLAN, y consulta su tabla para reenviar. Si el destino unicast es desconocido, puede inundar dentro de esa VLAN; las tramas broadcast también se limitan al dominio de capa 2.",
-      "Una trama Ethernet II contiene MAC destino, MAC origen, EtherType, carga útil y FCS. La etiqueta IEEE 802.1Q agrega información de VLAN y prioridad. NIC y hardware a menudo calculan o quitan FCS antes de que el sistema operativo vea la captura, así que su ausencia en Wireshark no indica que no se use. Los primeros bits de algunas MAC pueden pertenecer a un OUI asignado por IEEE; la administración local, virtualización y spoofing hacen que no autentique al fabricante ni al dispositivo actual.",
-      "ARP pregunta qué dirección MAC corresponde a una IPv4 de enlace local. Es un protocolo de resolución asociado a IPv4, transportado directamente dentro de una trama Ethernet (EtherType 0x0806), por eso suele enseñarse junto con capa 2 aunque dependa de una dirección de capa 3. IPv6 no usa ARP: usa Neighbor Discovery sobre ICMPv6.",
-      "Un switch normalmente separa dominios de colisión por puerto, pero los dispositivos en una VLAN comparten un dominio de broadcast. Una VLAN es una partición lógica de capa 2; la comunicación entre VLAN requiere una función de capa 3 y políticas explícitas.",
+      "Una dirección MAC identifica una interfaz dentro de una tecnología de enlace local. En Ethernet suele representarse como seis pares hexadecimales, por ejemplo `02:00:5e:10:00:01`. No es una dirección IP: la IP ayuda a entregar paquetes entre redes y la MAC dirige una trama en el siguiente enlace. La MAC puede administrarse localmente, cambiar o falsificarse; no prueba quién controla el equipo.",
+      "Una trama Ethernet II lleva MAC de destino y origen, un campo EtherType que identifica la carga, los datos y un FCS. En una LAN conmutada, el switch aprende principalmente observando la MAC de origen que entra por cada puerto y VLAN. Después consulta esa tabla para reenviar a la salida conocida; si todavía no conoce un destino unicast, puede inundarlo dentro de la VLAN.",
+      "ARP resuelve una pregunta concreta de IPv4: qué MAC debe usar el host para el próximo salto local. El host difunde una solicitud ARP en la LAN; el equipo que posee esa IPv4 suele responder con su asociación IPv4-MAC y el host puede guardarla temporalmente en caché. Si el destino IP está en otra red, el host no busca la MAC del servidor remoto: resuelve la MAC de su gateway.",
+      "ARP viaja directamente dentro de una trama Ethernet (EtherType 0x0806) y no cruza routers. No incluye autenticación criptográfica, así que un anuncio falso puede contaminar cachés y facilitar una posición de intermediario; eso es un riesgo, no prueba automática de incidente. IPv6 no usa ARP: Neighbor Discovery realiza funciones relacionadas mediante ICMPv6.",
+      "Una VLAN crea un dominio lógico de capa 2; una trama etiquetada con IEEE 802.1Q puede transportar su identificador entre puertos configurados. Los dispositivos de una VLAN comparten el dominio de broadcast, y la comunicación entre VLAN requiere una función de capa 3 y políticas explícitas. Una VLAN por sí sola no autentica usuarios ni cifra tráfico.",
+      "FCS permite detectar ciertos cambios accidentales en la trama, pero no autentica ni cifra. La NIC o el hardware suelen calcularlo y pueden quitarlo antes de que el sistema operativo entregue la captura, así que su ausencia en Wireshark no indica que Ethernet no lo use. En algunas MAC, parte de los bits corresponde a un OUI; asignaciones locales, virtualización y spoofing limitan su valor como pista de fabricante.",
     ],
     workflow: [
       "La capa de red entrega un paquete IP a la interfaz. Si el destino está en la subred local, el host resuelve la MAC del destino; si es remoto, resuelve la MAC del siguiente salto, normalmente el gateway.",
@@ -128,7 +166,7 @@ export const academyLessons: AcademyLesson[] = [
     redTeam: [
       { heading: "Reconocimiento autorizado", detail: "En una VLAN de laboratorio, identifica el prefijo, gateway, vecinos y alcance del segmento. Documenta si la captura se realiza en un puerto espejo o en una interfaz propia; una NIC normal no recibe todo el tráfico unicast ajeno." },
       { heading: "Enumeración", detail: "Compara tabla de vecinos del host con inventario aprobado y observa anuncios ARP y DHCP de un entorno aislado. No cambies cachés de terceros ni suplantes el gateway en producción." },
-      { heading: "Técnicas y herramientas", detail: "Una práctica puede demostrar ARP falsificado entre máquinas virtuales y luego verificar controles; limítala a una topología aislada y consentimiento explícito. `ip neigh`, `bridge`, `arp-scan` y `tcpdump` ayudan a observar, no prueban por sí solos una vulnerabilidad." },
+      { heading: "Técnicas y herramientas", detail: "Una práctica puede demostrar ARP falsificado entre máquinas virtuales y luego verificar controles; limítala a una topología aislada y consentimiento explícito. `ip neigh`, `bridge`, `arp-scan` y `tcpdump -e arp` ayudan a observar, no prueban por sí solos una vulnerabilidad." },
     ],
     commands: [
       { command: "ip neigh show", purpose: "Consulta caché de vecinos IPv4/IPv6 del kernel.", interpretation: "`REACHABLE`, `STALE`, `FAILED` y `INCOMPLETE` describen estado de resolución; una entrada dinámica no confirma identidad del vecino." },
@@ -150,6 +188,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 3,
     name: "Red",
+    introduction: "La capa de red permite que un equipo envíe paquetes a través de redes distintas. Resuelve el direccionamiento lógico y la elección de un siguiente salto. El router recibe una trama de enlace, examina el paquete IP, consulta sus rutas y lo entrega dentro de una nueva trama por el enlace siguiente.",
+    mainFunctions: [
+      { name: "Identificar interfaces y redes", explanation: "Las direcciones IP y sus prefijos permiten identificar interfaces y decidir si el destino es local o requiere otra red.", example: "192.0.2.10/24 pertenece al prefijo 192.0.2.0/24." },
+      { name: "Separar redes", explanation: "Los prefijos permiten determinar si un destino está en la red local o requiere un router." },
+      { name: "Elegir el siguiente salto", explanation: "Los routers consultan tablas de rutas para avanzar el paquete hacia su destino." },
+      { name: "Transportar paquetes entre enlaces", explanation: "La dirección IP de destino suele mantenerse mientras cambian las tramas de cada tramo." },
+      { name: "Informar condiciones de red", explanation: "Mensajes de control pueden describir errores o ayudar a diagnosticar el camino, según filtros y políticas." },
+    ],
+    memorizationDefinition: "La capa de red direcciona paquetes y permite reenviarlos entre redes distintas. Los routers consultan rutas para elegir el siguiente salto; en cada tramo, la capa de enlace entrega el paquete mediante una trama adecuada al enlace local.",
+    everydayExample: { analogy: "Es como escribir una dirección postal con ciudad y código postal: cada centro de distribución decide a qué centro enviar la carta después.", limits: "Internet no sigue una fila única ni garantiza entrega. Las rutas pueden cambiar y cada centro solo decide el siguiente tramo según su información." },
+    studySummary: { does: "Direcciona paquetes y selecciona caminos entre redes.", dataUnit: "Paquete o datagrama IP.", technologies: "IPv4, IPv6, routers, prefijos, tablas de rutas, gateway e ICMP.", remember: ["El host resuelve localmente la MAC del siguiente salto, no la MAC de todo servidor remoto.", "Un salto de traceroute sin respuesta no demuestra que el tránsito se haya perdido."], avoid: ["Confundir dirección IP con dirección MAC.", "Interpretar TTL/Hop Limit o ICMP como un contador de tiempo real de la aplicación."] },
+    selfCheck: [
+      { question: "¿Qué decide una tabla de rutas?", answer: "El siguiente salto o interfaz de salida para un prefijo de destino según las rutas disponibles." },
+      { question: "¿Qué cambia al pasar un paquete por un router: el destino IP o la trama local?", answer: "El router normalmente crea una trama nueva para el siguiente enlace; la IP de destino se conserva salvo funciones como NAT." },
+    ],
     pdu: "Paquete (datagrama IP)",
     objective:
       "Leer direccionamiento y prefijos IP, calcular el siguiente salto, distinguir encaminamiento de entrega local y comprender el papel de ICMP.",
@@ -216,6 +269,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 4,
     name: "Transporte",
+    introduction: "La capa de transporte conecta procesos de aplicaciones en equipos distintos. Resuelve cómo distinguir varias conversaciones que comparten direcciones IP. Usa puertos para entregar datos al socket adecuado y se apoya en la capa de red para moverlos entre extremos.",
+    mainFunctions: [
+      { name: "Entregar datos al proceso adecuado", explanation: "Los puertos ayudan al sistema operativo a multiplexar conversaciones entre aplicaciones.", example: "Una conexión a TCP 443 llega al servicio que escucha en ese puerto, según el sistema y la configuración." },
+      { name: "Ofrecer un flujo fiable con TCP", explanation: "TCP ordena bytes y usa confirmaciones y retransmisiones para recuperar pérdidas observadas." },
+      { name: "Enviar datagramas con UDP", explanation: "UDP conserva límites de mensajes y no garantiza por sí mismo entrega ni orden." },
+      { name: "Controlar ritmo y congestión", explanation: "TCP adapta el envío según confirmaciones y señales de congestión; el comportamiento depende de la implementación." },
+      { name: "Describir extremos y estado", explanation: "Direcciones, puertos y estado permiten identificar una conversación; NAT y balanceadores pueden cambiar lo que observa cada punto." },
+    ],
+    memorizationDefinition: "La capa de transporte permite intercambiar datos entre procesos usando puertos. TCP ofrece un flujo ordenado con mecanismos de entrega; UDP envía datagramas sin garantizar entrega ni orden. Cada aplicación elige según sus requisitos.",
+    everydayExample: { analogy: "Piensa en un edificio con una dirección postal y varios departamentos: la dirección lleva al edificio y el número de departamento ayuda a entregar el paquete al servicio correcto.", limits: "Un puerto no identifica por sí solo a una persona o aplicación y la analogía no refleja retransmisiones, estados ni reglas de firewall." },
+    studySummary: { does: "Multiplexa conversaciones y ofrece servicios de transporte entre procesos.", dataUnit: "Segmento TCP o datagrama UDP.", technologies: "Puertos, sockets, TCP, UDP, QUIC y conntrack.", remember: ["SYN inicia el handshake TCP; SYN_RECV puede ser un estado normal transitorio.", "Interpreta retransmisiones, RTT y estado junto con carga, ruta y punto de captura."], avoid: ["Afirmar que UDP es siempre más rápido o inseguro.", "Concluir un SYN flood solo por observar SYN_RECV."] },
+    selfCheck: [
+      { question: "¿Qué diferencia básica hay entre el servicio de TCP y el de UDP?", answer: "TCP proporciona un flujo ordenado y mecanismos de entrega; UDP ofrece datagramas sin esas garantías." },
+      { question: "¿Para qué sirve un puerto de transporte?", answer: "Ayuda al sistema a entregar datos de una conversación al socket o servicio correspondiente." },
+    ],
     pdu: "Segmento TCP o datagrama UDP",
     objective:
       "Diferenciar transporte fiable orientado a flujo de datagramas sin conexión, leer puertos y relacionar sockets, estados y servicios.",
@@ -283,6 +351,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 5,
     name: "Sesión",
+    introduction: "La capa de sesión es una forma del modelo OSI de pensar en los diálogos que una aplicación mantiene: cómo comienzan, continúan, coordinan turnos y terminan. Ayuda a describir continuidad entre intercambios. En TCP/IP estas tareas suelen estar repartidas entre aplicaciones, bibliotecas y protocolos; no hay un protocolo universal exclusivo de capa 5.",
+    mainFunctions: [
+      { name: "Abrir y cerrar diálogos", explanation: "Una aplicación puede establecer cuándo empieza y termina una interacción lógica." },
+      { name: "Mantener continuidad", explanation: "Un identificador o contexto puede asociar varias solicitudes a una misma actividad lógica." },
+      { name: "Coordinar intercambios", explanation: "Los participantes pueden organizar turnos, fases o estados de una conversación." },
+      { name: "Recuperar o reanudar trabajo", explanation: "Algunos sistemas guardan puntos de control para continuar tras una interrupción; no es una función garantizada por todo protocolo." },
+      { name: "Separar sesión de transporte", explanation: "Una sesión de aplicación puede abarcar varias conexiones o cambiar de ruta, proxy o dispositivo." },
+    ],
+    memorizationDefinition: "En el modelo OSI, la capa de sesión agrupa funciones que establecen, coordinan y reanudan diálogos entre aplicaciones. En sistemas TCP/IP esas tareas suelen integrarse en la aplicación y sus protocolos, sin un protocolo universal exclusivo de esta capa.",
+    everydayExample: { analogy: "Una videollamada tiene una sala con participantes, estado y turnos; la conversación puede continuar aunque cambie la conexión usada por un participante.", limits: "La sala no es necesariamente un objeto separado en la red. Cada aplicación implementa continuidad y recuperación de una forma propia." },
+    studySummary: { does: "Describe el estado y la continuidad lógica de diálogos entre aplicaciones.", dataUnit: "Datos de aplicación asociados a una sesión lógica; no existe un encabezado universal de capa 5.", technologies: "Estados de aplicación, sesiones, cookies, tokens, RPC y sockets que pueden sostenerlas.", remember: ["Una sesión de aplicación no es lo mismo que una conexión TCP.", "El modelo OSI organiza funciones; TCP/IP integra varias de ellas en la aplicación."], avoid: ["Afirmar que TCP implementa por sí solo la capa de sesión.", "Tratar un token como prueba suficiente de identidad o autorización." ] },
+    selfCheck: [
+      { question: "¿Puede una sesión de aplicación continuar en más de una conexión TCP?", answer: "Sí. La sesión lógica y la conexión de transporte son estados distintos; la aplicación determina cómo conservar continuidad." },
+      { question: "¿Hay un único protocolo que todas las redes usen para capa 5?", answer: "No. Es una agrupación funcional del modelo OSI; las implementaciones distribuyen esas tareas de distintas maneras." },
+    ],
     pdu: "Datos de diálogo o sesión de aplicación",
     objective:
       "Reconocer la idea de diálogo, estado y recuperación de sesión, y separar una sesión lógica de una conexión de transporte.",
@@ -347,6 +430,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 6,
     name: "Presentación",
+    introduction: "La capa de presentación ayuda a describir cómo representar los datos para que las aplicaciones puedan interpretarlos. Trata formatos, codificación, serialización, compresión y protección criptográfica. En TCP/IP no siempre existe una capa separada: bibliotecas y protocolos distribuyen esas funciones entre la aplicación y el transporte.",
+    mainFunctions: [
+      { name: "Representar estructuras", explanation: "Un formato define cómo ordenar campos, números, texto u objetos." },
+      { name: "Codificar caracteres", explanation: "Una codificación convierte caracteres en bytes que pueden enviarse y recuperarse.", example: "UTF-8 representa texto Unicode con secuencias de uno a cuatro bytes." },
+      { name: "Serializar mensajes", explanation: "La serialización transforma una estructura en una secuencia apta para almacenamiento o transmisión." },
+      { name: "Comprimir datos", explanation: "La compresión reduce tamaño usando reglas que el receptor debe poder interpretar." },
+      { name: "Proteger datos", explanation: "El cifrado y la autenticación pueden proteger contenido o canal; TLS suele clasificarse en distintas capas según el enfoque." },
+    ],
+    memorizationDefinition: "La capa de presentación describe cómo codificar, representar, transformar o proteger los datos para que las aplicaciones los interpreten. Formatos, compresión y cifrado pueden vivir en bibliotecas o protocolos distintos; su clasificación depende de la función estudiada.",
+    everydayExample: { analogy: "Es como acordar el idioma, el formato de fecha y el tipo de archivo de un documento antes de compartirlo; un sobre sellado añade protección durante el envío.", limits: "Los sistemas reales usan muchos formatos y capas de protección independientes. Tener el mismo formato no autentica al emisor ni garantiza que el contenido sea seguro." },
+    studySummary: { does: "Describe formatos y transformaciones que permiten representar e interpretar datos.", dataUnit: "Bytes o estructuras codificadas según el formato elegido.", technologies: "UTF-8, JSON, ASN.1, compresión, certificados, PKI y TLS según el contexto.", remember: ["Codificar no es cifrar: Base64 no oculta el contenido.", "TLS protege un canal; no garantiza que una aplicación autorice correctamente cada acción."], avoid: ["Afirmar que TLS pertenece universalmente a una sola capa OSI.", "Confundir una firma, un hash y un mecanismo de confidencialidad."] },
+    selfCheck: [
+      { question: "¿Qué diferencia hay entre codificar y cifrar?", answer: "La codificación representa datos según reglas públicas; el cifrado busca que el contenido no sea legible sin la clave adecuada." },
+      { question: "¿Un canal TLS válido demuestra que la aplicación es segura?", answer: "No. Protege el canal bajo la configuración observada, pero la aplicación todavía puede tener fallas de lógica o autorización." },
+    ],
     pdu: "Datos representados, codificados o protegidos",
     objective:
       "Analizar cómo se representan, transforman, comprimen y protegen los datos, y estudiar TLS y certificados sin presentar la capa 6 como una ubicación universal fija.",
@@ -413,6 +511,21 @@ export const academyLessons: AcademyLesson[] = [
   {
     number: 7,
     name: "Aplicación",
+    introduction: "La capa de aplicación reúne protocolos y servicios que permiten a los programas solicitar y ofrecer funciones de red. Resuelve cómo nombrar servicios y cómo expresar solicitudes y respuestas. No es la pantalla ni el programa completo: define intercambios que usan transporte, red y enlace para llegar a otro sistema.",
+    mainFunctions: [
+      { name: "Resolver nombres y descubrir servicios", explanation: "Un protocolo puede traducir un nombre legible a información útil para conectar.", example: "DNS puede devolver una dirección para un nombre de dominio." },
+      { name: "Solicitar recursos", explanation: "Los protocolos web definen cómo pedir y responder por documentos o datos." },
+      { name: "Intercambiar mensajes de negocio", explanation: "Aplicaciones usan protocolos para correo, archivos, administración y otros servicios." },
+      { name: "Configurar equipos", explanation: "Protocolos de configuración pueden asignar parámetros como direcciones, rutas y resolvers." },
+      { name: "Definir autenticación y contexto", explanation: "Un protocolo puede llevar credenciales o identidad; las reglas de autorización dependen del servicio y la aplicación." },
+    ],
+    memorizationDefinition: "La capa de aplicación reúne protocolos que permiten a las aplicaciones intercambiar solicitudes, respuestas y mensajes de servicio. No equivale a una interfaz gráfica ni a un programa completo: define comportamientos y formatos sobre las capas inferiores.",
+    everydayExample: { analogy: "Piensa en una ventanilla de atención: explicas qué servicio necesitas con un formato acordado y recibes una respuesta que sigue ciertas reglas.", limits: "Un protocolo no garantiza que la solicitud sea legítima ni que el servicio esté disponible; las reglas dependen de la aplicación, la identidad y la política." },
+    studySummary: { does: "Define intercambios de red que las aplicaciones usan para ofrecer servicios.", dataUnit: "Mensajes, solicitudes y respuestas según cada protocolo.", technologies: "DNS, HTTP/HTTPS, SMTP, DHCP, SSH, APIs, proxies y servicios de aplicación.", remember: ["Una aplicación de usuario y un protocolo de aplicación son conceptos distintos.", "HTTP 200 describe un resultado HTTP, no demuestra por sí solo autorización correcta."], avoid: ["Confundir DNS con la conexión web o con ARP global.", "Concluir compromiso solo por un nombre DNS largo o una respuesta HTTP aislada."] },
+    selfCheck: [
+      { question: "¿DNS abre por sí mismo una página web?", answer: "No. DNS ayuda a resolver nombres; después la aplicación establece las comunicaciones necesarias con el servicio." },
+      { question: "¿Qué diferencia hay entre una aplicación y su protocolo?", answer: "La aplicación es el programa o servicio; el protocolo define formatos y reglas para intercambiar mensajes." },
+    ],
     pdu: "Mensaje o dato de aplicación",
     objective:
       "Relacionar solicitudes y respuestas de aplicaciones con servicios de red, leer protocolos reales y construir una metodología inicial de enumeración para prácticas eJPT.",

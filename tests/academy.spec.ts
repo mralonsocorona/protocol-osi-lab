@@ -20,6 +20,17 @@ test("all seven lessons contain detailed technical, defensive and authorized off
   expect(academyLessons.map((lesson) => lesson.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   for (const lesson of academyLessons) {
     expect(lesson.objective.length).toBeGreaterThan(80);
+    expect(lesson.introduction.length, `${lesson.name} introduction`).toBeGreaterThan(100);
+    expect(lesson.mainFunctions.length, `${lesson.name} function count`).toBeGreaterThanOrEqual(4);
+    expect(lesson.mainFunctions.length, `${lesson.name} function count`).toBeLessThanOrEqual(6);
+    const memorizedWordCount = lesson.memorizationDefinition.trim().split(/\s+/u).length;
+    expect(memorizedWordCount, `${lesson.name} memorized definition word count`).toBeGreaterThanOrEqual(25);
+    expect(memorizedWordCount, `${lesson.name} memorized definition word count`).toBeLessThanOrEqual(55);
+    expect(lesson.everydayExample.analogy.length).toBeGreaterThan(70);
+    expect(lesson.everydayExample.limits.length).toBeGreaterThan(50);
+    expect(lesson.selfCheck.length).toBeGreaterThanOrEqual(2);
+    expect(lesson.studySummary.remember.length).toBeGreaterThan(0);
+    expect(lesson.studySummary.avoid.length).toBeGreaterThan(0);
     expect(lesson.fundamentals.length).toBeGreaterThanOrEqual(4);
     expect(lesson.fundamentals.join(" ").length).toBeGreaterThan(1_000);
     expect(lesson.workflow).toHaveLength(4);
@@ -88,7 +99,11 @@ test("direct route loads the independent seven-layer course", async ({ page }) =
     await expect(page.getByRole("heading", { level: 1, name: layerNames[index] })).toBeVisible();
     await expect(page.locator(".academy-layer-button[aria-pressed=true]")).toHaveCount(1);
     for (const heading of [
-      "Fundamentos y explicación técnica",
+      "¿Qué es esta capa?",
+      "Funciones principales",
+      "Definición para memorizar",
+      "Ejemplo cotidiano",
+      "Explicación técnica progresiva",
       "Funcionamiento paso a paso",
       "Encapsulación y PDU",
       "Protocolos y estándares",
@@ -99,9 +114,18 @@ test("direct route loads the independent seven-layer course", async ({ page }) =
       "Comandos Linux de práctica",
       "Errores conceptuales frecuentes",
       "Ejercicios de lectura",
-      "Resumen técnico",
+      "Autoevaluación breve",
+      "Resumen del capítulo",
       "Referencias y lecturas primarias",
     ]) await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+    const sectionOrder = await page.locator(".academy-lesson > .academy-section").evaluateAll((sections) => sections.slice(0, 5).map((section) => section.querySelector("h2")?.textContent));
+    expect(sectionOrder).toEqual(["¿Qué es esta capa?", "Funciones principales", "Definición para memorizar", "Ejemplo cotidiano", "Explicación técnica progresiva"]);
+    const visibleDefinition = await page.locator(".academy-memorize-definition").evaluate((element) => {
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll(".visually-hidden").forEach((node) => node.remove());
+      return clone.textContent;
+    });
+    expect(visibleDefinition).toBe(academyLessons[number - 1].memorizationDefinition);
     await expect(page.locator(".academy-investigation")).toContainText("CASO DE INVESTIGACIÓN · ESCENARIO SINTÉTICO");
     await expect(page.locator(".academy-investigation h3")).toHaveText(investigationLessons[number - 1].scenario.title);
     await expect(page.locator(".academy-command").first()).toBeVisible();
@@ -117,7 +141,7 @@ test("layer navigation and back-to-top control work on mobile widths", async ({ 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/capas");
   await page.getByRole("button", { name: "Abrir capítulo 1: Física" }).click();
-  for (const [control, exact] of [["Abrir índice del libro", false], ["Abrir Diccionario y Centro de conocimiento", false], ["Lectura", true], ["Guardar marcador de lectura", false]] as const) {
+  for (const [control, exact] of [["Abrir índice del libro", false], ["Abrir Centro de conocimiento", false], ["Lectura", true], ["Guardar marcador de lectura", false]] as const) {
     await expect(page.getByRole("button", { name: control, exact })).toBeVisible();
   }
   for (const width of [360, 390, 768, 1440]) {
@@ -185,8 +209,8 @@ test("manifest, scoped service worker, icons and lesson shell work offline", asy
   await page.getByRole("button", { name: "Evaluar mis conocimientos" }).click();
   await expect(page.getByRole("dialog", { name: "Evaluar mis conocimientos" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" }).click();
-  const knowledge = page.getByRole("dialog", { name: "Diccionario" });
+  await page.getByRole("button", { name: "Abrir Centro de conocimiento" }).click();
+  const knowledge = page.getByRole("dialog", { name: "Centro de conocimiento" });
   await expect(knowledge).toBeVisible();
   await knowledge.getByRole("searchbox", { name: "Buscar un término o sigla" }).fill("DNS tunnel");
   await expect(knowledge.getByRole("button", { name: /DNS tunneling/ })).toBeVisible();
@@ -237,53 +261,118 @@ test("library estimates, reader preferences, bookmarks and reading progress pers
 test("dictionary search, contextual definitions, related concepts and study links work accessibly", async ({ page }) => {
   await page.goto("/capas#capa-2");
   await expect(page.getByRole("heading", { level: 1, name: "Enlace" })).toBeVisible();
-  const dictionaryButton = page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" });
-  await dictionaryButton.click();
-  const dialog = page.getByRole("dialog", { name: "Diccionario" });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Volver a la lectura" }).focus();
+  const centerButton = page.getByRole("button", { name: "Abrir Centro de conocimiento" });
+  await centerButton.click();
+  const center = page.getByRole("dialog", { name: "Centro de conocimiento" });
+  await expect(center).toBeVisible();
+  await center.getByRole("button", { name: "Volver a la lectura" }).focus();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button", { name: "Cerrar diccionario" })).toBeFocused();
-  const search = dialog.getByRole("searchbox", { name: "Buscar un término o sigla" });
+  await expect(center.getByRole("button", { name: "Cerrar Centro de conocimiento" })).toBeFocused();
+  const search = center.getByRole("searchbox", { name: "Buscar un término o sigla" });
   await search.fill("ARP Cache Poisoning");
-  await dialog.getByRole("button", { name: /ARP spoofing/ }).click();
-  await expect(dialog.getByRole("heading", { level: 3, name: "ARP spoofing" })).toBeVisible();
-  await expect(dialog.locator(".knowledge-definition")).toContainText("Anunciar una asociación IPv4-MAC falsa");
-  await dialog.getByRole("button", { name: "Definición técnica" }).click();
-  await expect(dialog.locator(".knowledge-definition")).toContainText("Manipulación de cachés ARP");
-  await dialog.getByRole("button", { name: "ARP", exact: true }).click();
-  await expect(dialog.getByRole("heading", { level: 3, name: "ARP", exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: /Capítulo 2.*Fundamentos/ }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Fundamentos y explicación técnica", exact: true })).toBeVisible();
+  await center.getByRole("button", { name: /ARP spoofing/ }).click();
+  await expect(center.getByRole("heading", { level: 3, name: "ARP spoofing" })).toBeVisible();
+  await expect(center.locator(".knowledge-definition")).toContainText("Anunciar una asociación IPv4-MAC falsa");
+  await center.getByRole("button", { name: "Definición técnica" }).click();
+  await expect(center.locator(".knowledge-definition")).toContainText("Manipulación de cachés ARP");
+  await center.getByRole("button", { name: "ARP", exact: true }).click();
+  await expect(center.getByRole("heading", { level: 3, name: "ARP", exact: true })).toBeVisible();
+  await center.getByRole("button", { name: /Capítulo 2.*Explicación técnica/ }).click();
+  await expect(center).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Explicación técnica progresiva", exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("l2-fundamentos");
 
   const contextualTerm = page.locator("#l2-fundamentos .glossary-term").filter({ hasText: "ARP" }).first();
   await contextualTerm.scrollIntoViewIfNeeded();
   await contextualTerm.focus();
-  const before = await page.evaluate(() => window.scrollY);
+  const before = await page.evaluate(() => ({ y: window.scrollY, url: window.location.href, progress: JSON.parse(localStorage.getItem("atlas-osi.study.v2") ?? "{}").readProgress ?? {} }));
   await page.keyboard.press("Enter");
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("heading", { level: 3, name: "ARP", exact: true })).toBeVisible();
+  const contextualDialog = page.getByRole("dialog", { name: "ARP", exact: true });
+  await expect(contextualDialog).toBeVisible();
+  await expect(contextualDialog.getByRole("heading", { level: 2, name: "ARP", exact: true })).toBeVisible();
+  await expect(contextualDialog.locator(".contextual-term-definition")).toContainText("Ayuda a encontrar la dirección de enlace");
+  await expect(contextualDialog.getByRole("heading", { name: "Referencias", exact: true })).toBeVisible();
+  await expect(contextualDialog.getByRole("link", { name: /RFC 826/ })).toHaveAttribute("href", "https://www.rfc-editor.org/rfc/rfc826.html");
+  await expect(contextualDialog.getByRole("searchbox")).toHaveCount(0);
+  expect(page.url()).toBe(before.url);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before.y);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("atlas-osi.study.v2") ?? "{}").readProgress ?? {})).toEqual(before.progress);
+  await contextualDialog.getByRole("button", { name: "Definición técnica" }).click();
+  await expect(contextualDialog.locator(".contextual-term-definition")).toContainText("Protocolo sin autenticación");
+  await contextualDialog.getByRole("button", { name: "MAC", exact: true }).click();
+  const macDialog = page.getByRole("dialog", { name: "MAC", exact: true });
+  await expect(macDialog.getByRole("heading", { level: 2, name: "MAC", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
+  await expect(contextualDialog).toHaveCount(0);
   await expect(contextualTerm).toBeFocused();
-  const after = await page.evaluate(() => window.scrollY);
-  expect(Math.abs(after - before)).toBeLessThan(60);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before.y);
+  expect(page.url()).toBe(before.url);
+
+  await page.goto("/capas#capa-1");
+  const ethernetTerm = page.locator("#l1-fundamentos .glossary-term").filter({ hasText: "Ethernet" }).first();
+  await ethernetTerm.scrollIntoViewIfNeeded();
+  await ethernetTerm.click();
+  const ethernetDefinition = page.getByRole("dialog", { name: "Ethernet", exact: true });
+  await expect(ethernetDefinition.locator(".contextual-term-definition")).toContainText("familia de tecnologías de enlace cableado");
+  expect(page.url()).toMatch(/#capa-1$/);
+  await page.keyboard.press("Escape");
 });
 
 test("knowledge center remains readable and keyboard closable on a narrow mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto("/capas#capa-1");
-  await page.getByRole("button", { name: "Abrir Diccionario y Centro de conocimiento" }).click();
-  const dialog = page.getByRole("dialog", { name: "Diccionario" });
+  const trigger = page.getByRole("button", { name: "Abrir Centro de conocimiento" });
+  const before = await page.evaluate(() => ({ y: window.scrollY, url: window.location.href }));
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Centro de conocimiento" });
   await expect(dialog).toBeVisible();
+  const search = dialog.getByRole("searchbox", { name: "Buscar un término o sigla" });
+  await search.fill("SYN_RECV");
+  await expect(dialog.getByRole("button", { name: /^SYN_RECV/ })).toBeVisible();
+  await expect(search).toBeFocused();
+  await search.clear();
   await dialog.getByRole("button", { name: "Capas", exact: true }).click();
   await expect(dialog.getByRole("heading", { level: 3, name: "Física" })).toBeVisible();
   const dimensions = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(page.url()).toBe(before.url);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before.y);
+
+  await page.goto("/capas#capa-2");
+  const term = page.locator("#l2-fundamentos .glossary-term").filter({ hasText: "ARP" }).first();
+  await term.scrollIntoViewIfNeeded();
+  const readingPosition = await page.evaluate(() => window.scrollY);
+  await term.click();
+  const contextual = page.getByRole("dialog", { name: "ARP", exact: true });
+  await expect(contextual.locator(".contextual-term-definition")).toContainText("dirección de enlace");
+  const modalLayout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    bodyOverflow: document.body.style.overflow,
+    dialogWidth: document.querySelector(".contextual-term-dialog")!.getBoundingClientRect().width,
+  }));
+  expect(modalLayout.document, JSON.stringify(modalLayout)).toBeLessThanOrEqual(modalLayout.viewport);
+  expect(modalLayout.dialogWidth).toBeLessThanOrEqual(modalLayout.viewport);
+  expect(modalLayout.bodyOverflow).toBe("hidden");
+  await page.keyboard.press("Escape");
+  await expect(contextual).toHaveCount(0);
+  await expect(term).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(readingPosition);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+});
+
+test("contextual annotations preserve CLI examples and keep controls out of exercise summaries", async ({ page }) => {
+  await page.goto("/capas#capa-2");
+  const tools = page.locator("#l2-red-team .academy-insight").filter({ hasText: "Técnicas y herramientas" });
+  await expect(tools.locator("code")).toHaveText(["ip neigh", "bridge", "arp-scan", "tcpdump -e arp"]);
+  await expect(tools.locator("code .glossary-term")).toHaveCount(0);
+  const macQuestion = page.locator("#l2-ejercicios summary").filter({ hasText: "¿Qué MAC aparece en la trama que sale del cliente?" });
+  await expect(macQuestion).toBeVisible();
+  await expect(macQuestion.getByRole("button")).toHaveCount(0);
+  await expect(macQuestion).toContainText("¿Qué MAC aparece en la trama que sale del cliente?");
 });
 
 test("chapter assessment validates before revealing rationale, scores, saves attempt and restores focus", async ({ page }) => {

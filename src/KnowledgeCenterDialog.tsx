@@ -6,7 +6,6 @@ import {
 } from "./knowledge";
 
 type Props = {
-  initialTermId?: string | null;
   currentLayer: AcademyLayer;
   onClose: () => void;
   onOpenSection: (layer: AcademyLayer, sectionId: string) => void;
@@ -14,10 +13,10 @@ type Props = {
 
 type Tab = "dictionary" | "layers" | "scenarios" | "references";
 
-export function KnowledgeCenterDialog({ initialTermId = null, currentLayer, onClose, onOpenSection }: Props) {
+export function KnowledgeCenterDialog({ currentLayer, onClose, onOpenSection }: Props) {
   const [tab, setTab] = useState<Tab>("dictionary");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(initialTermId);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [technical, setTechnical] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -28,15 +27,16 @@ export function KnowledgeCenterDialog({ initialTermId = null, currentLayer, onCl
   const selected: KnowledgeConcept | undefined = selectedId ? knowledgeById.get(selectedId) : undefined;
 
   useEffect(() => {
+    const readingPosition = window.scrollY;
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    searchRef.current?.focus();
+    searchRef.current?.focus({ preventScroll: true });
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); closeRef.current(); return; }
       if (event.key !== "Tab" || !dialogRef.current) return;
       const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')];
-      if (!focusable.length) { event.preventDefault(); dialogRef.current.focus(); return; }
+      if (!focusable.length) { event.preventDefault(); dialogRef.current.focus({ preventScroll: true }); return; }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -46,19 +46,20 @@ export function KnowledgeCenterDialog({ initialTermId = null, currentLayer, onCl
     return () => {
       document.removeEventListener("keydown", handleKeydown);
       document.body.style.overflow = previousOverflow;
-      window.setTimeout(() => opener.current?.focus(), 0);
+      window.scrollTo({ top: readingPosition, behavior: "instant" });
+      window.setTimeout(() => opener.current?.focus({ preventScroll: true }), 0);
     };
   }, []);
 
   const openSection = (layer: AcademyLayer, sectionId: string) => onOpenSection(layer, sectionId);
-  const chooseTab = (value: Tab) => { setTab(value); if (value === "dictionary") searchRef.current?.focus(); };
+  const chooseTab = (value: Tab) => { setTab(value); if (value === "dictionary") searchRef.current?.focus({ preventScroll: true }); };
 
   return (
     <div className="academy-dialog-backdrop knowledge-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="knowledge-dialog" role="dialog" aria-modal="true" aria-labelledby="knowledge-title" ref={dialogRef} tabIndex={-1}>
         <header className="knowledge-header">
-          <div><p className="assessment-kicker">ATLAS OSI · CENTRO DE CONOCIMIENTO</p><h2 id="knowledge-title">Diccionario</h2></div>
-          <button className="assessment-close" type="button" aria-label="Cerrar diccionario" onClick={onClose}>Cerrar <span aria-hidden="true">×</span></button>
+          <div><p className="assessment-kicker">ATLAS OSI · EXPLORACIÓN TEMÁTICA</p><h2 id="knowledge-title">Centro de conocimiento</h2></div>
+          <button className="assessment-close" type="button" aria-label="Cerrar Centro de conocimiento" onClick={onClose}>Cerrar <span aria-hidden="true">×</span></button>
         </header>
         <nav className="knowledge-tabs" aria-label="Explorar el centro de conocimiento">
           {([["dictionary", "Diccionario"], ["layers", "Capas"], ["scenarios", "Escenarios"], ["references", "MITRE y NIST"]] as const).map(([value, label]) =>

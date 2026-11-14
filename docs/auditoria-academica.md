@@ -1,8 +1,8 @@
 # Auditoría académica de Atlas OSI Academia
 
 **Fecha de auditoría:** 2026-11-14<br />
-**Commit base auditado:** `4caf111` (`main`, estado previo a esta entrega).<br />
-**Alcance de la revalidación:** árbol de trabajo de esta entrega. `npm run typecheck`, `npm run build` y la suite Playwright (38 pruebas) se ejecutaron antes de preparar el commit; no se hizo push ni despliegue.
+**Commit base auditado:** `d23e392` (`main`, estado previo a esta entrega).<br />
+**Alcance de la revalidación:** árbol de trabajo de esta entrega. `npm run typecheck`, `npm run build` y la suite Playwright se ejecutaron antes de preparar el commit; no se hizo push ni despliegue.
 
 ## Revisión de cobertura y cambios de esta entrega
 
@@ -10,11 +10,21 @@ El registro [`trazabilidad-academica.md`](./trazabilidad-academica.md) enumera l
 
 En esta revisión se ampliaron los contenidos que sustentan preguntas sobre `SYN_RECV`/SYN flood, PHY y repetidores, estados `LOWER_UP`, CRC/FCS y RTT, DHCP snooping/DAI/802.1X/RADIUS, NetFlow/IPFIX, BGP/RPKI/ROA/uRPF, TLS/SNI/ECH, DNS/NXDOMAIN, estados HTTP, RPC, Base64, UTF-8 y `file(1)`. Se agregaron fichas con definiciones sencillas y técnicas, ejemplos, capas, relaciones, secciones y referencias. Las anotaciones en texto usan botones semánticos controlados; la búsqueda global reconoce siglas y sinónimos sin red ni backend.
 
+### Reforma pedagógica y diccionario contextual
+
+La lectura de los siete capítulos ahora comienza, tras el encabezado editorial, con la misma progresión: explicación introductoria, cuatro a seis funciones con ejemplos, definición breve para memorizar, analogía con sus límites y desarrollo técnico. Cada capítulo termina con resumen por función/PDU/tecnologías/recuerdo/errores y dos ejercicios de recuperación activa. Los IDs de sección de fundamentos, protocolos, escenarios y preguntas se conservaron; se añadieron `lN-que-es`, `lN-funciones`, `lN-memorizar`, `lN-cotidiano` y `lN-repaso-activo`. Capa 5 mantiene explícita su condición de categoría conceptual y no propone un protocolo exclusivo; capa 6 aclara que TLS no tiene una asignación OSI única.
+
+En capa 2, los fundamentos ahora siguen el orden MAC/IP → aprendizaje de origen por switch → trama Ethernet → solicitud/respuesta ARP y destino local/remoto → VLAN → FCS/OUI/riesgos. Esto prepara la distinción necesaria antes de las hipótesis de ARP spoofing y de los casos Blue Team. El resto de las capas conserva sus desarrollos de protocolo y observabilidad después de los conceptos introductorios.
+
+El clic/teclado en un término abre una ficha compacta con la definición de ese concepto, niveles sencillo/técnico, ejemplo, capas, relaciones, referencias y salto opcional a una sección. El Centro de conocimiento mantiene su experiencia separada de búsqueda y exploración. Ambas interfaces gestionan Escape, foco, scroll de fondo y restauración del punto de lectura; la evaluación estructural prueba las rutas de móvil, lectura y retorno. La anotación usa nodos de texto y botones, omite segmentos entre backticks y no recorre comandos `<pre><code>` ni los resúmenes de ejercicios. En el recorrido móvil también se corrigió la regla global `white-space: nowrap` que impedía ajustar las tablas de protocolos y ampliaba el viewport; la navegación de capítulos ahora cabe en una cuadrícula compacta.
+
+La nueva sección `Autoevaluación breve` promueve recordar antes de revelar la explicación; no sustituye ni filtra preguntas del banco calificado. La ficha contextual enlaza fuentes oficiales disponibles offline como metadatos estáticos; visitar el recurso requiere conexión. La búsqueda de conceptos sigue ejecutándose localmente.
+
 Se revisaron manualmente los casos de `SYN_RECV`, el contraste entre RTT/retransmisiones y una hipótesis de flood, la interpretación de ARP spoofing frente a failover, el alcance de DNS tunneling, la diferencia entre PHY y capa física OSI, y las referencias MITRE/NIST mostradas. Las pruebas estructurales no prueban por sí solas exactitud académica, plausibilidad de todos los distractores ni ausencia universal de ambigüedad. La tabla conserva el enunciado y distractores para facilitar esa revisión editorial; la revisión semántica exhaustiva de cada alternativa sigue siendo una limitación pendiente y no se presenta como certificada por automatización.
 
 **Integraciones contrastadas en fuentes oficiales:** MITRE ATT&CK `T1557.002` (ARP Cache Poisoning, versión 1.1 consultada) y `T1071.004` (DNS, versión 1.4 consultada); mapeos condicionales por escenario con evidencia y límites. NIST CSF 2.0 usa sus seis funciones, sin categorías no verificadas ni declaración de cumplimiento. NIST SP 800-61 Rev. 3 se cita en estado final (abril de 2025), que sustituye Rev. 2. Se añadieron verificaciones estructurales que restringen los IDs y la taxonomía del marco.
 
-**Resultado de operación:** build de producción correcto; 38/38 pruebas Playwright aprobadas, incluidas navegación, búsqueda y definiciones con teclado, vista móvil estrecha, evaluación y repaso, rutas `/` y `/capas`, preferencias/marcadores y acceso local al diccionario tras cargar offline. El service worker mantiene scope `/capas` y precache estático; las referencias externas requieren conexión.
+**Resultado de operación:** `npm run typecheck` correcto; `npm run build` correcto (PWA con 12 recursos estáticos precargados); `npm test -- --reporter=line` aprobó 39/39 pruebas, incluidas definiciones contextuales, búsqueda independiente, teclado, foco/posición, comandos sin cambios, evaluaciones y layouts móviles. La comprobación móvil usa Chromium con viewport estrecho; no equivale a una validación física con teclado Android ni a una auditoría completa de lector de pantalla. El service worker mantiene scope `/capas`; las referencias externas requieren conexión.
 
 ## Alcance y método
 
