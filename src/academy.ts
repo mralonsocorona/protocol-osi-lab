@@ -233,7 +233,7 @@ export const academyLessons: AcademyLesson[] = [
       "PDU TCP: segmento con puertos, secuencia, ACK, flags, ventana y checksum. PDU UDP: datagrama de encabezado mínimo de 8 bytes con puertos, longitud y checksum. El transporte se encapsula en IP; la carga TCP es un flujo de bytes y UDP mantiene límites de datagrama.",
     protocols: [
       { name: "TCP (RFC 9293)", role: "Flujo fiable y ordenado con control de flujo y congestión; las aplicaciones definen cómo interpretar sus bytes." },
-      { name: "UDP (RFC 768)", role: "Datagramas sin establecimiento de conexión ni garantías de entrega y orden por el protocolo." },
+      { name: "UDP (RFC 768; actualización RFC 9868)", role: "Datagramas sin establecimiento de conexión ni garantías de entrega y orden; RFC 9868 agrega opciones UDP." },
       { name: "SCTP (RFC 9260)", role: "Transporte orientado a mensajes con asociaciones, multistreaming y multihoming en implementaciones compatibles." },
       { name: "QUIC (RFC 9000) / HTTP/3 (RFC 9114)", role: "QUIC implementa flujos y seguridad sobre UDP; HTTP/3 mapea semántica HTTP a streams QUIC." },
       { name: "DCCP (RFC 4340)", role: "Protocolo de transporte de datagramas con control de congestión; su despliegue es poco común." },
@@ -348,8 +348,8 @@ export const academyLessons: AcademyLesson[] = [
     fundamentals: [
       "El modelo OSI asigna a presentación la sintaxis y semántica de datos, conversión de formato, compresión y cifrado. En Internet esas funciones suelen vivir en bibliotecas y protocolos que se integran con la aplicación; no existe una capa de presentación TCP/IP independiente en todos los flujos.",
       "Una cadena puede representarse como UTF-8, UTF-16 u otra codificación; una estructura puede serializarse como JSON, ASN.1, Protocol Buffers o CBOR; una carga puede comprimirse con gzip o zstd. Interpretar bytes exige conocer formato, versión, longitud y reglas de validación.",
-      "TLS 1.3 (RFC 8446) protege una sesión de comunicación con autenticación de servidor habitual, negociación criptográfica y cifrado autenticado. Es común ubicarlo en la capa 6 para enseñanza por sus funciones de representación y seguridad, pero en sistemas reales está entre API de aplicación y transporte, y su clasificación OSI es discutible.",
-      "X.509 define certificados de clave pública y cadena de confianza. Un certificado válido debe coincidir con el nombre, estar dentro de vigencia, encadenar a una autoridad confiable y satisfacer política. TLS protege el canal; no garantiza que el contenido o servicio sea benigno ni cifra metadatos de red como IP y puerto.",
+      "TLS 1.3 (RFC 9846, que actualiza y reemplaza RFC 8446) protege un canal con autenticación del servidor y, opcionalmente, del cliente según método y configuración; aporta negociación criptográfica y cifrado autenticado. Es común ubicarlo en la capa 6 para enseñanza por sus funciones de representación y seguridad, pero en sistemas reales se integra entre la API de aplicación y el transporte, y su clasificación OSI es discutible.",
+      "X.509 define certificados de clave pública y cadenas de certificación. La validación del certificado comprueba la cadena, vigencia y políticas; el cliente TLS también debe verificar que la identidad del servicio coincida con el nombre solicitado. TLS protege el canal, pero no garantiza que el contenido o servicio sea benigno ni cifra metadatos de red como IP y puerto.",
       "Cifrado no es codificación: Base64 solo representa bytes imprimibles; compresión no es cifrado; hashing no es cifrado reversible. Confundir estas operaciones causa exposición de secretos y análisis incorrecto de capturas.",
     ],
     workflow: [
@@ -361,7 +361,7 @@ export const academyLessons: AcademyLesson[] = [
     encapsulation:
       "No hay una PDU de presentación universal. JSON, ASN.1, TLS records y formatos binarios tienen estructuras propias; TLS encapsula datos de aplicación en registros sobre transporte confiable en su modo tradicional. TLS 1.3 sobre QUIC usa el mapeo de QUIC, no registros TLS TCP convencionales.",
     protocols: [
-      { name: "TLS 1.3 (RFC 8446)", role: "Establece claves y protege datos con cifrado autenticado; su ubicación OSI se clasifica de varias formas." },
+      { name: "TLS 1.3 (RFC 9846; antes RFC 8446)", role: "Establece claves y protege datos con cifrado autenticado; su ubicación OSI se clasifica de varias formas." },
       { name: "X.509 / PKIX", role: "Define certificados y cadenas de confianza para vincular identidades con claves públicas." },
       { name: "ASN.1 / DER / BER", role: "Notaciones y codificaciones para estructuras de datos; X.509 suele codificarse como DER." },
       { name: "UTF-8 (RFC 3629)", role: "Codificación de Unicode ampliamente usada; validar texto exige decodificación estricta y tratamiento de normalización adecuado." },

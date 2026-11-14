@@ -5,11 +5,11 @@ import { join } from "node:path";
 const html = await readFile("dist/index.html", "utf8");
 const workerPath = "dist/service-worker.js";
 let worker = await readFile(workerPath, "utf8");
-const bundledAssets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)]
+const bundledAssets = [...html.matchAll(/(?:src|href)="(\/capas\/assets\/[^\"]+)"/g)]
   .map((match) => match[1]);
-const offlineChunks = (await readdir("dist/assets"))
+const offlineChunks = (await readdir("dist/capas/assets"))
   .filter((name) => /\.(?:js|css)$/.test(name))
-  .map((name) => `/assets/${name}`);
+  .map((name) => `/capas/assets/${name}`);
 const urls = [
   "/",
   "/capas",

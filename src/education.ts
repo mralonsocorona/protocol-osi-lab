@@ -54,22 +54,22 @@ export const lessons: Lesson[] = [
     scenario: {
       title: "Interferencia y pérdida de señal",
       normal:
-        "Enlace estable a 1 Gb/s, sin cambios de estado ni aumento sostenido de errores.",
+        "Una estación Wi-Fi permanece asociada al punto de acceso, con señal y errores de recepción dentro de su línea base.",
       anomaly:
-        "El enlace cae 8 veces en 5 minutos y aumenta el contador de errores.",
+        "La estación pierde y recupera asociación 8 veces en 5 minutos; cae el SNR y aumentan los errores de recepción del radio.",
       evidence: [
-        "21:01 link down → up (8 eventos / 5 min)",
-        "CRC: 0 → 240; SNR cae respecto a su línea base",
+        "21:01 station disassociated → associated (8 eventos / 5 min)",
+        "Radio RX FCS errors: 0 → 240; SNR: 32 dB → 9 dB",
       ],
       problem:
-        "Ruido, conectores o transceptores defectuosos pueden degradar disponibilidad. Estos síntomas no demuestran un ataque.",
+        "Interferencia, canal congestionado, potencia, antena o driver pueden degradar disponibilidad. Estos síntomas no demuestran interferencia deliberada.",
       investigation: [
-        "Correlaciona errores de ambos extremos y cambios físicos recientes.",
-        "Compara potencia/SNR con la especificación del medio; prueba un cable conocido.",
+        "Correlaciona los eventos del cliente y AP con el canal, ancho, potencia y cambios de radio recientes.",
+        "Compara SNR y contadores por estación con otras estaciones y con la línea base del canal; revisa driver y entorno RF.",
       ],
       mitigation: [
-        "Sustituye el medio defectuoso y protege el acceso físico.",
-        "Monitoriza cambios de enlace y separa cableado de fuentes de interferencia.",
+        "Corrige el canal o la cobertura según una medición controlada; actualiza firmware/driver si la evidencia lo justifica.",
+        "Protege el acceso físico al AP y registra cambios de configuración y eventos de asociación.",
       ],
       tools: ["Contadores PHY/NIC y SNMP", "Diagnóstico de cableado/óptica", "Analizador Wi-Fi para radio"],
       falsePositives: "Errores de contador pueden reiniciarse tras reinicios; interferencia, congestión o negociación de velocidad no implican sabotaje.",

@@ -25,6 +25,7 @@ test("production server preserves security headers and narrowly scopes the PWA",
   expect(nginx).toContain("manifest-src 'self'");
   expect(nginx).toContain("location = /health");
   expect(nginx).toContain("location = /capas");
+  expect(nginx).toContain("location /capas/assets/");
   expect(nginx).toContain("default_type application/manifest+json");
   expect(nginx).toContain("try_files $uri $uri/ /index.html");
   expect(nginx).not.toMatch(/script-src[^;]*unsafe-inline/);

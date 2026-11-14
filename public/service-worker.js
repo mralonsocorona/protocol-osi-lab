@@ -35,16 +35,16 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(async () => (await caches.match(request))
-          || (await caches.match("/capas"))
-          || (await caches.match("/index.html"))),
+        .catch(async () => (await caches.match(request, { ignoreVary: true }))
+          || (await caches.match("/capas", { ignoreVary: true }))
+          || (await caches.match("/index.html", { ignoreVary: true }))),
     );
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
+  if (url.pathname.startsWith("/capas/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      caches.match(request, { ignoreVary: true }).then((cached) => cached || fetch(request).then((response) => {
         if (response.ok) {
           const copy = response.clone();
           void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
