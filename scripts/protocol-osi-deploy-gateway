@@ -1,0 +1,41 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly wrapper=/usr/local/sbin/protocol-osi-deploy
+readonly request=${SSH_ORIGINAL_COMMAND:-}
+
+if [[ "$request" == "version" ]]; then
+  sha256sum "$wrapper" | awk '{print $1}'
+  exit 0
+fi
+
+read -r action image registry_user extra <<< "$request"
+if [[ -n "${extra:-}" ]]; then
+  echo "Rejected deployment request." >&2
+  exit 64
+fi
+
+case "$action" in
+  deploy)
+    [[ "${image:-}" =~ ^ghcr\.io/mralonsocorona/protocol-osi-lab:sha-[a-f0-9]{40}$ ]] || {
+      echo "Rejected image reference." >&2
+      exit 64
+    }
+    [[ "${registry_user:-}" =~ ^[A-Za-z0-9-]+$ ]] || {
+      echo "Rejected registry user." >&2
+      exit 64
+    }
+    exec sudo -n "$wrapper" deploy "$image" "$registry_user"
+    ;;
+  rollback)
+    [[ "${image:-}" =~ ^ghcr\.io/mralonsocorona/protocol-osi-lab@sha256:[a-f0-9]{64}$ ]] || {
+      echo "Rejected rollback image." >&2
+      exit 64
+    }
+    exec sudo -n "$wrapper" rollback "$image"
+    ;;
+  *)
+    echo "Rejected deployment request." >&2
+    exit 64
+    ;;
+esac

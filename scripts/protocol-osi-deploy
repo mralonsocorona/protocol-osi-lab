@@ -1,0 +1,160 @@
+#!/bin/bash
+set -Eeuo pipefail
+umask 077
+
+readonly project_dir=/srv/apps/protocol-osi
+readonly service=protocol-osi-web
+readonly edge_network=protocol-osi-edge
+readonly image_repository=ghcr.io/mralonsocorona/protocol-osi-lab
+readonly image_pattern='^ghcr\.io/mralonsocorona/protocol-osi-lab:sha-[a-f0-9]{40}$'
+readonly digest_pattern='^ghcr\.io/mralonsocorona/protocol-osi-lab@sha256:[a-f0-9]{64}$'
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "Deployment wrapper must run as root through its restricted sudo rule." >&2
+  exit 77
+fi
+
+mode=${1:-}
+target_image=${2:-}
+registry_user=${3:-}
+if [[ "$mode" == "deploy" ]]; then
+  [[ "$target_image" =~ $image_pattern ]] || exit 64
+  [[ "${registry_user:-}" =~ ^[A-Za-z0-9-]+$ ]] || exit 64
+elif [[ "$mode" == "rollback" ]]; then
+  [[ "$target_image" =~ $digest_pattern ]] || exit 64
+else
+  echo "Usage: protocol-osi-deploy deploy IMAGE REGISTRY_USER | rollback IMAGE_DIGEST" >&2
+  exit 64
+fi
+
+runtime_dir=$(mktemp -d /tmp/protocol-osi-deploy.XXXXXX)
+docker_config=$(mktemp -d /tmp/protocol-osi-docker.XXXXXX)
+chmod 700 "$runtime_dir" "$docker_config"
+export DOCKER_CONFIG=$docker_config
+compose_file=
+deployment_started=0
+previous_image=
+
+cleanup() {
+  status=$?
+  trap - EXIT
+  if [[ "$status" -ne 0 && "$deployment_started" -eq 1 && -n "$previous_image" && -n "$compose_file" ]]; then
+    echo "Deployment check failed; restoring the previous image."
+    printf 'services:\n  %s:\n    image: %s\n    pull_policy: never\n' "$service" "$previous_image" > "$runtime_dir/override.yml"
+    compose up -d --no-deps --force-recreate --no-build --pull never "$service" || echo "Automatic rollback command failed." >&2
+    wait_for_health || echo "Automatic rollback health check failed." >&2
+  fi
+  rm -rf "$runtime_dir" "$docker_config"
+  exit "$status"
+}
+trap cleanup EXIT
+
+if [[ "$mode" == "deploy" ]]; then
+  echo "Authenticating to GHCR for a one-time image pull."
+  docker login ghcr.io --username "$registry_user" --password-stdin
+  docker pull "$target_image"
+  docker logout ghcr.io >/dev/null 2>&1 || true
+fi
+
+cd "$project_dir"
+for candidate in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+  if [[ -f "$candidate" ]]; then
+    compose_file="$project_dir/$candidate"
+    break
+  fi
+done
+[[ -n "$compose_file" ]] || { echo "No Compose file found in $project_dir." >&2; exit 66; }
+
+compose() { docker compose -f "$compose_file" -f "$runtime_dir/override.yml" "$@"; }
+printf 'services: {}\n' > "$runtime_dir/override.yml"
+
+docker network inspect "$edge_network" >/dev/null
+compose config --services | grep -Fxq "$service" || { echo "Compose service $service is missing." >&2; exit 66; }
+current_container=$(compose ps -q "$service")
+[[ -n "$current_container" ]] || { echo "Current service container $service is not running." >&2; exit 66; }
+
+current_image_id=$(docker inspect --format '{{.Image}}' "$current_container")
+previous_image=$(docker image inspect "$current_image_id" --format '{{range .RepoDigests}}{{println .}}{{end}}' | sed -n '1p')
+[[ "$previous_image" =~ $digest_pattern ]] || {
+  echo "Cannot identify the running image digest for rollback." >&2
+  exit 66
+}
+
+snapshot() {
+  docker inspect --format '{{.Config.User}}|{{json .HostConfig}}|{{json .Mounts}}' "$1"
+}
+
+traefik_labels() {
+  docker inspect --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' "$1" | grep '^traefik\.' | sort
+}
+
+network_names() {
+  docker inspect --format '{{range $name, $value := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$1" | sort
+}
+
+wait_for_health() {
+  local count=0 container status
+  while [[ "$count" -lt 36 ]]; do
+    container=$(compose ps -q "$service" 2>/dev/null || true)
+    if [[ -z "$container" ]]; then return 1; fi
+    status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$container")
+    if [[ "$status" == "healthy" ]]; then return 0; fi
+    if [[ "$status" == "unhealthy" || "$status" == "missing" ]]; then
+      echo "Container health status: $status" >&2
+      return 1
+    fi
+    sleep 5
+    count=$((count + 1))
+  done
+  echo "Timed out waiting for a healthy $service container." >&2
+  return 1
+}
+
+before_snapshot=$(snapshot "$current_container")
+before_networks=$(network_names "$current_container")
+before_traefik_labels=$(traefik_labels "$current_container")
+readonly_user=$(printf '%s' "$before_snapshot" | cut -d'|' -f1)
+if [[ "$before_snapshot" != *'"ReadonlyRootfs":true'* || -z "$readonly_user" || "$readonly_user" == "root" || "$readonly_user" == "0" ]]; then
+  echo "The current service is not both non-root and read-only; refusing deployment." >&2
+  exit 66
+fi
+[[ -n "$before_traefik_labels" ]] || { echo "The running service has no Traefik labels; refusing deployment." >&2; exit 66; }
+grep -Fxq "$edge_network" <<< "$before_networks" || { echo "The current service is not attached to $edge_network." >&2; exit 66; }
+
+if [[ "$mode" == "rollback" ]]; then
+  docker image inspect "$target_image" >/dev/null
+else
+  target_image=${target_image#"$image_repository":}
+  target_image="$image_repository:$target_image"
+fi
+
+printf 'services:\n  %s:\n    image: %s\n    pull_policy: never\n' "$service" "$target_image" > "$runtime_dir/override.yml"
+deployment_started=1
+compose up -d --no-deps --force-recreate --no-build --pull never "$service"
+wait_for_health
+
+new_container=$(compose ps -q "$service")
+[[ -n "$new_container" ]] || { echo "New container is missing after Compose update." >&2; exit 1; }
+after_snapshot=$(snapshot "$new_container")
+after_networks=$(network_names "$new_container")
+after_traefik_labels=$(traefik_labels "$new_container")
+if [[ "$after_snapshot" != "$before_snapshot" ]]; then
+  echo "Container runtime, security, resource, or mount settings changed; refusing deployment." >&2
+  exit 1
+fi
+if [[ "$after_networks" != "$before_networks" ]]; then
+  echo "Container network attachments changed; refusing deployment." >&2
+  exit 1
+fi
+if [[ "$after_traefik_labels" != "$before_traefik_labels" ]]; then
+  echo "Traefik routing or TLS labels changed; refusing deployment." >&2
+  exit 1
+fi
+grep -Fxq "$edge_network" <<< "$after_networks" || { echo "New container is not attached to $edge_network." >&2; exit 1; }
+
+deployment_started=0
+if [[ "$mode" == "deploy" ]]; then
+  printf 'PREVIOUS_IMAGE=%s\n' "$previous_image"
+else
+  echo "Rollback image is healthy and the existing container settings are preserved."
+fi

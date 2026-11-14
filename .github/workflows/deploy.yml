@@ -1,25 +1,22 @@
-name: Protocol OSI Lab - CI and Publish
+name: Validate, publish and deploy Protocol OSI
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: protocol-osi-production
   cancel-in-progress: false
 
 jobs:
-  test:
-    name: Security, TypeScript and Playwright
+  validate:
+    name: Validate routes, lessons and laboratory
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,21 +33,29 @@ jobs:
       - name: Dependency security audit
         run: npm audit --audit-level=moderate
 
+      - name: Validate TypeScript
+        run: npm run typecheck
+
+      - name: Build application and versioned PWA cache
+        run: npm run build
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run tests
-        run: npm test
+      - name: Build production container for validation
+        run: docker build --tag protocol-osi-lab:ci-${{ github.sha }} .
 
-      - name: Build application
-        run: npm run build
+      - name: Run browser and security tests against hardened Nginx image
+        run: bash scripts/test-production-container.sh protocol-osi-lab:ci-${{ github.sha }}
 
   publish:
-    name: Build and publish Docker image
-    needs: test
+    name: Build and publish immutable image
+    needs: validate
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,9 +68,9 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
-      - name: Build and push
+      - name: Build and push validated commit
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -79,3 +84,27 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy exact commit to Contabo
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy, verify HTTPS and roll back on failure
+        env:
+          DEPLOY_VPS_HOST: ${{ secrets.DEPLOY_VPS_HOST }}
+          DEPLOY_VPS_PORT: ${{ secrets.DEPLOY_VPS_PORT }}
+          DEPLOY_VPS_USER: ${{ secrets.DEPLOY_VPS_USER }}
+          DEPLOY_VPS_SSH_KEY: ${{ secrets.DEPLOY_VPS_SSH_KEY }}
+          DEPLOY_VPS_KNOWN_HOSTS: ${{ secrets.DEPLOY_VPS_KNOWN_HOSTS }}
+          GHCR_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: bash scripts/deploy-production.sh

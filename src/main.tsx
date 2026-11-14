@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Search,
@@ -22,6 +22,8 @@ import { Topology } from "./components/Topology";
 import { EducationPanel, BlueTeamPanel } from "./components/EducationPanel";
 import { EncapsulationView } from "./components/EncapsulationView";
 import "./style.css";
+
+const AcademyPage = lazy(() => import("./Academy").then(({ Academy }) => ({ default: Academy })));
 const addresses = {
   client: "192.168.1.10",
   router: "192.168.1.1",
@@ -45,7 +47,7 @@ const deviceNames = {
   internet: "Internet",
   server: "Servidor",
 };
-function App() {
+function LabApp() {
   const [state, dispatch] = useReducer(labReducer, initialState);
   const { pid, layer, step: stepIndex, playing } = state;
   const [filter, setFilter] = useState("TODOS"),
@@ -586,4 +588,12 @@ function App() {
     </div>
   );
 }
+
+function App() {
+  if (window.location.pathname === "/capas" || window.location.pathname === "/capas/") {
+    return <Suspense fallback={<main role="status" aria-busy="true">Cargando Academia OSI…</main>}><AcademyPage /></Suspense>;
+  }
+  return <LabApp />;
+}
+
 createRoot(document.getElementById("root")!).render(<App />);
