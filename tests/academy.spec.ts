@@ -15,6 +15,19 @@ const layerNames = [
   "Aplicación",
 ];
 
+function luminance(hexColor: string): number {
+  const hex = hexColor.replace(/^#/, "");
+  const normalized = hex.length === 3 ? [...hex].map((character) => character + character).join("") : hex;
+  const channels = [0, 2, 4].map((index) => parseInt(normalized.slice(index, index + 2), 16) / 255);
+  const linear = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 test("all seven lessons contain detailed technical, defensive and authorized offensive coverage", () => {
   expect(academyLessons.map((lesson) => lesson.name)).toEqual(layerNames);
   expect(academyLessons.map((lesson) => lesson.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
@@ -144,7 +157,7 @@ test("layer navigation and back-to-top control work on mobile widths", async ({ 
   for (const [control, exact] of [["Abrir índice del libro", false], ["Abrir Centro de conocimiento", false], ["Lectura", true], ["Guardar marcador de lectura", false]] as const) {
     await expect(page.getByRole("button", { name: control, exact })).toBeVisible();
   }
-  for (const width of [360, 390, 768, 1440]) {
+  for (const width of [360, 390, 430, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     const layout = await page.evaluate(() => ({
       viewport: window.innerWidth,
@@ -298,26 +311,160 @@ test("library estimates, reader preferences, bookmarks and reading progress pers
   await page.getByRole("button", { name: "Abrir capítulo 2: Enlace" }).click();
   await page.getByRole("button", { name: "Lectura", exact: true }).click();
   await page.getByLabel("Tema").selectOption("sepia");
+  await page.getByLabel("Tipografía").selectOption("mono");
   const fontSize = page.locator(".reader-settings input[type=range]").first();
   await fontSize.focus();
   await fontSize.press("ArrowRight");
   await fontSize.press("ArrowRight");
   await fontSize.press("ArrowRight");
   await expect(page.locator(".academy-shell")).toHaveAttribute("data-theme", "sepia");
+  await expect(page.locator(".academy-shell")).toHaveAttribute("data-reader-font", "mono");
   await expect(page.locator(".academy-shell")).toHaveCSS("--reader-font-size", "20px");
+  await page.getByRole("button", { name: "Capa 3: Red", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Red" })).toBeVisible();
+  await expect(page.locator(".academy-shell")).toHaveAttribute("data-theme", "sepia");
+  await expect(page.locator(".academy-shell")).toHaveAttribute("data-reader-font", "mono");
+  await page.getByRole("button", { name: "Capa 2: Enlace", exact: true }).click();
   await page.getByRole("button", { name: "Guardar marcador de lectura" }).click();
   await expect(page.getByRole("button", { name: "Ir al marcador guardado" })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.querySelector("#l2-blue-team")!.getBoundingClientRect().top + window.scrollY));
   await page.waitForTimeout(650);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("atlas-osi.study.v2") ?? "{}"));
-  expect(saved.preferences).toMatchObject({ theme: "sepia", fontSize: 20 });
+  expect(saved.preferences).toMatchObject({ theme: "sepia", font: "mono", fontSize: 20 });
   expect(saved.bookmarks[2]).toBe(0);
   expect(saved.readProgress[2]).toBeGreaterThan(30);
   await page.reload();
   await expect(page.locator(".academy-shell")).toHaveAttribute("data-theme", "sepia");
+  await expect(page.locator(".academy-shell")).toHaveAttribute("data-reader-font", "mono");
   await expect(page.getByRole("heading", { level: 1, name: "Enlace" })).toBeVisible();
   await page.getByRole("button", { name: "Abrir índice del libro" }).click();
   await expect(page.getByRole("button", { name: "Continuar" })).toBeVisible();
+});
+
+test("reader typography and appearance tokens propagate across content and themes", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto("/capas#capa-1");
+  await expect(page.getByRole("heading", { level: 1, name: "Física" })).toBeVisible();
+  await page.getByRole("button", { name: "Lectura", exact: true }).click();
+
+  const themeSelect = page.getByLabel("Tema");
+  const fontSelect = page.getByLabel("Tipografía");
+  const sizeControl = page.locator(".reader-settings input[type=range]").first();
+  for (const [font, expectedFamily] of [["serif", "Georgia"], ["sans", "Inter"], ["mono", "ui-monospace"]] as const) {
+    await fontSelect.selectOption(font);
+    const families = await page.evaluate(() => [
+      ".academy-prose p", ".academy-functions p", ".academy-memorize-definition",
+      ".academy-everyday-example p", ".academy-investigation p", ".academy-table-wrap tbody td",
+    ].map((selector) => getComputedStyle(document.querySelector(selector)!).fontFamily));
+    expect(families.every((family) => family.includes(expectedFamily)), `${font} family propagation: ${families.join(" | ")}`).toBeTruthy();
+  }
+
+  await sizeControl.focus();
+  await sizeControl.press("Home");
+  await expect(sizeControl).toHaveValue("16");
+  await expect(page.locator(".academy-prose p").first()).toHaveCSS("font-size", "16px");
+  await sizeControl.press("End");
+  await expect(sizeControl).toHaveValue("28");
+  const largeType = await page.evaluate(() => ({
+    body: getComputedStyle(document.querySelector(".academy-prose p")!).fontSize,
+    functionCard: getComputedStyle(document.querySelector(".academy-functions p")!).fontSize,
+    table: getComputedStyle(document.querySelector(".academy-table-wrap tbody td")!).fontSize,
+    caseStudy: getComputedStyle(document.querySelector(".academy-investigation p")!).fontSize,
+    definition: getComputedStyle(document.querySelector(".academy-memorize-definition")!).fontSize,
+    commandFamily: getComputedStyle(document.querySelector(".academy-command code")!).fontFamily,
+    toolbarFamily: getComputedStyle(document.querySelector(".reader-toolbar-inner > button")!).fontFamily,
+  }));
+  expect(largeType).toMatchObject({ body: "28px", functionCard: "26px", table: "28px", caseStudy: "28px", definition: "32px" });
+  expect(largeType.commandFamily).toContain("ui-monospace");
+  expect(largeType.toolbarFamily).toContain("Inter");
+
+  const themes = [
+    ["paper", "#f7f5ef", "#24231f"],
+    ["mono", "#fff", "#111"],
+    ["dark", "#20211f", "#eeeae1"],
+    ["sepia", "#f1e7d4", "#38291c"],
+  ] as const;
+  const backgrounds = new Set<string>();
+  for (const [theme, expectedBackground, expectedText] of themes) {
+    await themeSelect.selectOption(theme);
+    const colors = await page.evaluate(() => {
+      const style = getComputedStyle(document.querySelector(".academy-shell")!);
+      return Object.fromEntries([
+        "background", "surface", "surface-muted", "text", "text-secondary", "text-muted", "border", "border-subtle",
+        "accent", "focus", "interactive", "code-background", "code-text", "success", "success-surface", "error", "error-surface",
+      ].map((name) => [name, style.getPropertyValue(`--color-${name}`).trim()]));
+    });
+    expect(colors.background).toBe(expectedBackground);
+    expect(colors.text).toBe(expectedText);
+    backgrounds.add(colors.background as string);
+    expect(contrastRatio(colors.text as string, colors.background as string)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors["text-secondary"] as string, colors.background as string)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors["text-muted"] as string, colors.background as string)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.success as string, colors["success-surface"] as string)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(colors.error as string, colors["error-surface"] as string)).toBeGreaterThanOrEqual(4.5);
+    if (theme === "mono") {
+      const grayscalePalette = Object.values(colors).every((value) => {
+        const hex = (value as string).replace(/^#/, "");
+        const normalized = hex.length === 3 ? [...hex].map((character) => character + character).join("") : hex;
+        return /^[\da-f]{6}$/iu.test(normalized)
+          && normalized.slice(0, 2) === normalized.slice(2, 4)
+          && normalized.slice(2, 4) === normalized.slice(4, 6);
+      });
+      expect(grayscalePalette).toBeTruthy();
+      const statusStyles = await page.evaluate(() => {
+        const shell = document.querySelector(".academy-shell")!;
+        const correct = document.createElement("div");
+        const incorrect = document.createElement("div");
+        correct.className = "assessment-feedback is-correct";
+        incorrect.className = "assessment-feedback is-incorrect";
+        shell.append(correct, incorrect);
+        const values = {
+          correctBorder: getComputedStyle(correct).borderLeftStyle,
+          incorrectBorder: getComputedStyle(incorrect).borderLeftStyle,
+          correctSurface: getComputedStyle(correct).backgroundColor,
+          incorrectSurface: getComputedStyle(incorrect).backgroundColor,
+        };
+        correct.remove();
+        incorrect.remove();
+        return values;
+      });
+      expect(statusStyles).toEqual({ correctBorder: "solid", incorrectBorder: "dashed", correctSurface: "rgb(241, 241, 241)", incorrectSurface: "rgb(233, 233, 233)" });
+    }
+  }
+  expect(backgrounds.size).toBe(4);
+
+  await themeSelect.selectOption("mono");
+  await fontSelect.selectOption("mono");
+  for (const width of [360, 390, 430, 768, 1280]) {
+    await page.setViewportSize({ width, height: 780 });
+    const layout = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+    expect(layout.document, `Font size 28 horizontal overflow at ${width}px`).toBeLessThanOrEqual(layout.viewport);
+  }
+
+  await page.getByRole("button", { name: "Abrir Centro de conocimiento" }).click();
+  const knowledge = page.getByRole("dialog", { name: "Centro de conocimiento" });
+  await knowledge.getByRole("searchbox", { name: "Buscar un término o sigla" }).fill("ARP Cache Poisoning");
+  await knowledge.getByRole("button", { name: /ARP spoofing/ }).click();
+  await expect(knowledge.locator(".knowledge-definition")).toHaveCSS("font-size", "28px");
+  await expect(knowledge.locator(".knowledge-definition")).toHaveCSS("font-family", /ui-monospace/);
+  await page.keyboard.press("Escape");
+
+  const term = page.locator("#l1-fundamentos .glossary-term").filter({ hasText: "Ethernet" }).first();
+  await term.scrollIntoViewIfNeeded();
+  await term.click();
+  const definition = page.getByRole("dialog", { name: "Ethernet", exact: true });
+  await expect(definition.locator(".contextual-term-definition")).toHaveCSS("font-size", "28px");
+  await expect(definition.locator(".contextual-term-definition")).toHaveCSS("font-family", /ui-monospace/);
+  await page.keyboard.press("Escape");
+
+  const assessmentTrigger = page.getByRole("button", { name: "Evaluar mis conocimientos" });
+  await assessmentTrigger.scrollIntoViewIfNeeded();
+  await assessmentTrigger.click();
+  const assessment = page.getByRole("dialog", { name: "Evaluar mis conocimientos" });
+  await expect(assessment.locator(".assessment-prompt")).toHaveCSS("font-family", /ui-monospace/);
+  await expect(assessment.locator(".assessment-prompt")).toHaveCSS("font-size", "40px");
+  await expect(assessment.locator(".assessment-option").first()).toHaveCSS("font-size", "26px");
+  await page.keyboard.press("Escape");
 });
 
 test("dictionary search, contextual definitions, related concepts and study links work accessibly", async ({ page }) => {

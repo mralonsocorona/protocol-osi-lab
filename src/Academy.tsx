@@ -51,7 +51,7 @@ export function estimatedMinutes(layer: AcademyLayer): number {
 }
 
 function clampPreference<K extends keyof ReaderPreferences>(key: K, value: number, previous: ReaderPreferences): ReaderPreferences {
-  const ranges = { fontSize: [15, 21], lineHeight: [1.55, 1.95], columnWidth: [600, 780], paragraphSpacing: [8, 22] } as const;
+  const ranges = { fontSize: [16, 28], lineHeight: [1.55, 1.95], columnWidth: [600, 780], paragraphSpacing: [8, 22] } as const;
   if (!(key in ranges)) return previous;
   const [minimum, maximum] = ranges[key as keyof typeof ranges];
   return { ...previous, [key]: Math.max(minimum, Math.min(maximum, value)) };
@@ -78,7 +78,8 @@ export function Academy() {
   const style = {
     "--reader-font-size": `${study.preferences.fontSize}px`,
     "--reader-line-height": study.preferences.lineHeight,
-    "--reader-column-width": `${study.preferences.columnWidth}px`,
+    "--reader-content-width": `${study.preferences.columnWidth}px`,
+    "--reader-letter-spacing": study.preferences.font === "serif" ? "-0.005em" : study.preferences.font === "mono" ? "0.01em" : "0",
     "--reader-paragraph-spacing": `${study.preferences.paragraphSpacing}px`,
   } as CSSProperties;
   const annotate = (text: string, section: string) => <GlossaryText termIds={termAnnotationsBySection[sectionId(selected, section)] ?? []} onOpenTerm={setContextualTermId}>{text}</GlossaryText>;
@@ -296,9 +297,9 @@ export function Academy() {
               <div className="reader-progress" aria-label={`Progreso de lectura ${study.readProgress[selected] ?? 0}%`}><span>Cap. 0{selected} / 07</span><progress max={100} value={study.readProgress[selected] ?? 0} aria-label={`Progreso del capítulo ${lesson.name}`} /></div>
             </div>
             {settingsOpen && <section className="reader-settings" id="reader-settings" aria-label="Ajustes de lectura">
-              <label>Tema <select value={study.preferences.theme} onChange={(event) => changePreference("theme", event.target.value as ReaderPreferences["theme"])}><option value="paper">Papel</option><option value="sepia">Sepia</option><option value="dark">Oscuro</option></select></label>
-              <label>Tipografía <select value={study.preferences.font} onChange={(event) => changePreference("font", event.target.value as ReaderPreferences["font"])}><option value="serif">Serif</option><option value="sans">Sans serif</option></select></label>
-              <label>Tamaño <span>{study.preferences.fontSize}px</span><input type="range" min="15" max="21" step="1" value={study.preferences.fontSize} onChange={(event) => changePreference("fontSize", Number(event.target.value))} /></label>
+              <label>Tema <select value={study.preferences.theme} onChange={(event) => changePreference("theme", event.target.value as ReaderPreferences["theme"])}><option value="paper">Papel cálido</option><option value="mono">Blanco y negro</option><option value="sepia">Sepia</option><option value="dark">Oscuro</option></select></label>
+              <label>Tipografía <select value={study.preferences.font} onChange={(event) => changePreference("font", event.target.value as ReaderPreferences["font"])}><option value="serif">Serif editorial</option><option value="sans">Sans moderna</option><option value="mono">Monoespaciada</option></select></label>
+              <label>Tamaño <span>{study.preferences.fontSize}px</span><input type="range" min="16" max="28" step="1" value={study.preferences.fontSize} onChange={(event) => changePreference("fontSize", Number(event.target.value))} /></label>
               <label>Interlineado <span>{study.preferences.lineHeight.toFixed(2)}</span><input type="range" min="1.55" max="1.95" step="0.05" value={study.preferences.lineHeight} onChange={(event) => changePreference("lineHeight", Number(event.target.value))} /></label>
               <label>Ancho de lectura <span>{study.preferences.columnWidth}px</span><input type="range" min="600" max="780" step="20" value={study.preferences.columnWidth} onChange={(event) => changePreference("columnWidth", Number(event.target.value))} /></label>
               <label>Espacio entre párrafos <span>{study.preferences.paragraphSpacing}px</span><input type="range" min="8" max="22" step="2" value={study.preferences.paragraphSpacing} onChange={(event) => changePreference("paragraphSpacing", Number(event.target.value))} /></label>

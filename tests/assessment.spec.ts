@@ -133,6 +133,10 @@ test("dictionary records and every question prerequisite resolve to material tau
 test("study state migrates older versions, tolerates corrupt data, records attempts and preserves reader preferences on reset", () => {
   const legacy = normalizeStudyState({ version: 1, lastLayer: 3, readProgress: { 3: 45 }, scrollPositions: { 3: 410 }, preferences: { theme: "sepia", fontSize: 19 }, completedLayers: [1, 8] });
   expect(legacy).toMatchObject({ version: 2, lastLayer: 3, readProgress: { 3: 45 }, scrollPositions: { 3: 410 }, preferences: { theme: "sepia", fontSize: 19 }, completedLayers: [1] });
+  expect(normalizeStudyState({ version: 2, preferences: { theme: "mono", font: "mono", fontSize: 28 } }).preferences)
+    .toMatchObject({ theme: "mono", font: "mono", fontSize: 28 });
+  expect(normalizeStudyState({ version: 2, preferences: { fontSize: 40 } }).preferences.fontSize).toBe(28);
+  expect(normalizeStudyState({ version: 2, preferences: { fontSize: 15 } }).preferences.fontSize).toBe(16);
   expect(loadStudyState({ getItem: () => "{" })).toMatchObject({ version: 2, lastLayer: 1 });
 
   const memory = new Map<string, string>();

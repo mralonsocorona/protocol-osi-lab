@@ -3,8 +3,8 @@ import type { AssessmentCategory, AssessmentKind } from "./assessment-bank";
 import type { AnswerMap, AssessmentResult } from "./assessment-engine";
 
 export type ReaderPreferences = {
-  theme: "paper" | "dark" | "sepia";
-  font: "serif" | "sans";
+  theme: "paper" | "mono" | "dark" | "sepia";
+  font: "serif" | "sans" | "mono";
   fontSize: number;
   lineHeight: number;
   columnWidth: number;
@@ -77,9 +77,9 @@ function cleanPreferences(value: unknown): ReaderPreferences {
   if (!value || typeof value !== "object") return { ...defaults };
   const record = value as Record<string, unknown>;
   return {
-    theme: record.theme === "dark" || record.theme === "sepia" ? record.theme : "paper",
-    font: record.font === "sans" ? "sans" : "serif",
-    fontSize: boundedNumber(record.fontSize, 15, 21, defaults.fontSize),
+    theme: record.theme === "mono" || record.theme === "dark" || record.theme === "sepia" ? record.theme : "paper",
+    font: record.font === "sans" || record.font === "mono" ? record.font : "serif",
+    fontSize: boundedNumber(record.fontSize, 16, 28, defaults.fontSize),
     lineHeight: boundedNumber(record.lineHeight, 1.55, 1.95, defaults.lineHeight),
     columnWidth: boundedNumber(record.columnWidth, 600, 780, defaults.columnWidth),
     paragraphSpacing: boundedNumber(record.paragraphSpacing, 8, 22, defaults.paragraphSpacing),
