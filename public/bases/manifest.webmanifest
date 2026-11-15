@@ -1,0 +1,18 @@
+{
+  "id": "/bases/",
+  "name": "Blacknova · Bases de Ciberseguridad",
+  "short_name": "Bases",
+  "description": "Biblioteca de fundamentos de ciberseguridad, Blue Team y preparación para Security+.",
+  "start_url": "/bases/",
+  "scope": "/bases/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f5ef",
+  "theme_color": "#24231f",
+  "categories": ["education", "reference"],
+  "icons": [
+    { "src": "/bases/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/bases/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/bases/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

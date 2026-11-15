@@ -34,4 +34,28 @@ worker = worker
   .replace('const CACHE_NAME = `${CACHE_PREFIX}dev`;', `const CACHE_NAME = \`${"${CACHE_PREFIX}"}${version}\`;`)
   .replace("const PRECACHE_URLS = [];", `const PRECACHE_URLS = ${JSON.stringify(urls)};`);
 await writeFile(workerPath, worker);
+const basesWorkerPath = "dist/bases/service-worker.js";
+let basesWorker = await readFile(basesWorkerPath, "utf8");
+const basesUrls = [
+  "/bases/",
+  "/index.html",
+  "/bases/manifest.webmanifest",
+  "/bases/icons/icon-192.png",
+  "/bases/icons/icon-512.png",
+  "/bases/icons/icon-maskable-512.png",
+  ...offlineChunks,
+];
+const basesVersionHash = createHash("sha256");
+basesVersionHash.update(basesWorker);
+for (const url of [...new Set(basesUrls)].sort()) {
+  const file = ["/bases/", "/index.html"].includes(url) ? "dist/index.html" : join("dist", url.slice(1));
+  basesVersionHash.update(url);
+  basesVersionHash.update(await readFile(file));
+}
+const basesVersion = basesVersionHash.digest("hex").slice(0, 12);
+basesWorker = basesWorker
+  .replace('const CACHE_NAME = CACHE_PREFIX + "dev";', 'const CACHE_NAME = CACHE_PREFIX + "' + basesVersion + '";')
+  .replace("const PRECACHE_URLS = [];", "const PRECACHE_URLS = " + JSON.stringify([...new Set(basesUrls)]) + ";");
+await writeFile(basesWorkerPath, basesWorker);
+console.log("Generated Bases service worker " + basesVersion + " with " + new Set(basesUrls).size + " precached resources.");
 console.log(`Generated service worker ${version} with ${urls.length} precached resources.`);

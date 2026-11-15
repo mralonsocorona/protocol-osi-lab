@@ -24,6 +24,7 @@ import { EncapsulationView } from "./components/EncapsulationView";
 import "./style.css";
 
 const AcademyPage = lazy(() => import("./Academy").then(({ Academy }) => ({ default: Academy })));
+const BasesPage = lazy(() => import("./Bases").then(({ Bases }) => ({ default: Bases })));
 const addresses = {
   client: "192.168.1.10",
   router: "192.168.1.1",
@@ -590,6 +591,9 @@ function LabApp() {
 }
 
 function App() {
+  if (window.location.pathname === "/bases" || window.location.pathname.startsWith("/bases/")) {
+    return <Suspense fallback={<main role="status" aria-busy="true">Cargando Bases de Ciberseguridad…</main>}><BasesPage /></Suspense>;
+  }
   if (window.location.pathname === "/capas" || window.location.pathname === "/capas/") {
     return <Suspense fallback={<main role="status" aria-busy="true">Cargando Academia OSI…</main>}><AcademyPage /></Suspense>;
   }
