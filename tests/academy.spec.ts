@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { academyLessons } from "../src/academy";
 import { chapterRecaps, chapterReferences } from "../src/academy-references";
 import { lessons as investigationLessons } from "../src/education";
@@ -161,12 +161,74 @@ test("layer navigation and back-to-top control work on mobile widths", async ({ 
     }
   }
 
+  await page.setViewportSize({ width: 390, height: 740 });
+  const mobileFlow = await page.evaluate(() => ({
+    toolbarPosition: getComputedStyle(document.querySelector(".reader-toolbar")!).position,
+    chapterNavPosition: getComputedStyle(document.querySelector(".academy-layer-nav")!).position,
+    toolbarBottom: document.querySelector(".reader-toolbar")!.getBoundingClientRect().bottom,
+    chapterNavBottom: document.querySelector(".academy-layer-nav")!.getBoundingClientRect().bottom,
+  }));
+  expect(mobileFlow.toolbarPosition).toBe("static");
+  expect(mobileFlow.chapterNavPosition).toBe("static");
+  expect(mobileFlow.chapterNavBottom).toBeGreaterThan(mobileFlow.toolbarBottom);
+  await page.evaluate(() => window.scrollTo(0, 1200));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+  const scrolledMobileFlow = await page.evaluate(() => ({
+    toolbarBottom: document.querySelector(".reader-toolbar")!.getBoundingClientRect().bottom,
+    chapterNavBottom: document.querySelector(".academy-layer-nav")!.getBoundingClientRect().bottom,
+  }));
+  expect(scrolledMobileFlow.toolbarBottom).toBeLessThanOrEqual(0);
+  expect(scrolledMobileFlow.chapterNavBottom).toBeLessThanOrEqual(0);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktopFlow = await page.evaluate(() => ({
+    toolbarPosition: getComputedStyle(document.querySelector(".reader-toolbar")!).position,
+    chapterNavPosition: getComputedStyle(document.querySelector(".academy-layer-nav")!).position,
+    tocPosition: getComputedStyle(document.querySelector(".reader-toc")!).position,
+  }));
+  expect(desktopFlow).toEqual({ toolbarPosition: "static", chapterNavPosition: "static", tocPosition: "static" });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
   const backToTop = page.getByRole("button", { name: "Volver arriba" });
   await expect(backToTop).not.toHaveClass(/is-visible/);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect(backToTop).toHaveClass(/is-visible/);
   await backToTop.click();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test("Android reader controls leave the viewport while reading", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ ...devices["Pixel 7"], baseURL });
+  const page = await context.newPage();
+  try {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/capas");
+    await page.getByRole("button", { name: "Abrir capítulo 1: Física" }).click();
+    await expect(page.getByRole("heading", { name: "Secciones del capítulo" })).toHaveCount(0);
+    await expect(page.locator(".mobile-section-index summary")).toHaveText("Secciones del capítulo");
+    const mobileUserAgent = await page.evaluate(() => navigator.userAgent);
+    expect(mobileUserAgent).toContain("Android");
+
+    await page.evaluate(() => window.scrollTo(0, 1400));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+    const controls = await page.evaluate(() => [".reader-toolbar", ".academy-layer-nav"].map((selector) => {
+      const element = document.querySelector(selector)!;
+      return { position: getComputedStyle(element).position, bottom: element.getBoundingClientRect().bottom };
+    }));
+    expect(controls).toEqual([
+      { position: "static", bottom: expect.any(Number) },
+      { position: "static", bottom: expect.any(Number) },
+    ]);
+    expect(controls.every((control) => control.bottom <= 0)).toBeTruthy();
+
+    const backToTop = page.getByRole("button", { name: "Volver arriba" });
+    await expect(backToTop).toBeVisible();
+    await backToTop.click();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  } finally {
+    await context.close();
+  }
 });
 
 test("manifest, scoped service worker, icons and lesson shell work offline", async ({ page, context, request }) => {
@@ -380,6 +442,16 @@ test("chapter assessment validates before revealing rationale, scores, saves att
   const trigger = page.getByRole("button", { name: "Evaluar mis conocimientos" });
   await trigger.scrollIntoViewIfNeeded();
   await trigger.focus();
+  const readingPosition = await page.evaluate(() => window.scrollY);
+  const backToTop = page.getByRole("button", { name: "Volver arriba" });
+  await expect(backToTop).toHaveClass(/is-visible/);
+  const evaluationClearOfBackToTop = await page.evaluate(() => {
+    const floating = document.querySelector(".academy-back-top")!.getBoundingClientRect();
+    const evaluation = document.querySelector(".chapter-assessment-entry button")!.getBoundingClientRect();
+    return floating.right <= evaluation.left || floating.left >= evaluation.right
+      || floating.bottom <= evaluation.top || floating.top >= evaluation.bottom;
+  });
+  expect(evaluationClearOfBackToTop).toBeTruthy();
   await trigger.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -388,6 +460,7 @@ test("chapter assessment validates before revealing rationale, scores, saves att
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(readingPosition);
 
   await trigger.click();
   for (let question = 1; question <= 10; question += 1) {

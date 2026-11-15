@@ -36,6 +36,7 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
   const selected = answers[current?.id] ?? [];
 
   useEffect(() => {
+    const readingPosition = window.scrollY;
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -54,7 +55,8 @@ export function AssessmentDialog({ kind, layer, previousQuestionIds = [], onClos
     return () => {
       document.removeEventListener("keydown", handleKeydown);
       document.body.style.overflow = previousOverflow;
-      window.setTimeout(() => opener.current?.focus(), 0);
+      window.scrollTo({ top: readingPosition, behavior: "instant" });
+      window.setTimeout(() => opener.current?.focus({ preventScroll: true }), 0);
     };
   }, []);
 
